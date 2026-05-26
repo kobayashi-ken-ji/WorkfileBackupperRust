@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <title>バックアップ設定</title>
+    <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+
+    <h2>自動バックアップ設定</h2>
+
+    <div class="form-group">
+        <label for="path">対象フォルダのパス</label>
+        <input type="text" id="path" value="D:\一時作業ファイル">
+    </div>
+
+    <dev class="form-group">
+        <label for="ext">拡張子</label>
+        <input type="text" id="ext" value=".psd">
+    </dev>
+
+    <button id="start-btn">開始</button>
+    <button id="hide-btn" style="background: #666; margin-left: 10px">トレイに格納</button>
+
+    <p id="status"></p>
+
+    <script src="main.js" type="module"></script>
+</body>
+</html>
