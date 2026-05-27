@@ -43,6 +43,8 @@ document.getElementById("hide-btn").addEventListener("click", async () => {
 });
 
 //=============================================================================
+// Rustから受信する
+//=============================================================================
 
 // Tauriのイベント用関数 listen
 const { listen } = window.__TAURI__.event;
@@ -55,10 +57,19 @@ async function initEventListener() {
 
         // Rustからの送信されたデータを取り出す
         const log = event.payload;
-        console.log(`状況: ${log.status}, メッセージ: ${log.message}`);
+        // console.log(log);
+
+        // 現在時刻を文字列化 (HH:MM 形式)
+        const date = new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
 
         // ログに表示する
         const statusEl = document.getElementById("status");
-        statusEl.innerText = `[${new Date().toLocaleTimeString()}] ${log.message}`;
+        statusEl.innerText = `[${date}] ${log}`;
+
+        // console.log(`状況: ${log.status}, メッセージ: ${log.message}`);
+        // statusEl.innerText = `[${new Date().toLocaleTimeString()}] ${log.message}`;
     });
 }
+
+// 実行を忘れずに
+initEventListener();

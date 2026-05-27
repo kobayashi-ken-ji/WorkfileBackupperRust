@@ -23,4 +23,8 @@ tauri-plugin-opener = "2"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 tauri-plugin-notification = "2"
+chrono = "0.4.44"
+tokio = { version = "1.52.3", features = ["full"] }
+futures = "0.3.32"
+notify-debouncer-full = "0.7.0"
 
