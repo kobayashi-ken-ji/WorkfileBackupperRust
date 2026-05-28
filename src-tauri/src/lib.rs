@@ -6,6 +6,7 @@ pub mod commands;
 pub mod services;
 pub mod models;
 
+use chrono::Local;
 use std::path::{Path, PathBuf};
 use std::sync::mpsc::{channel, Sender};
 use std::thread;
@@ -18,12 +19,10 @@ use tauri::{
     Emitter,
 };
 
-use services::watch::{NotifyMessage};
-
-/// TauriのStateに登録するための構造体 (送信機をラップ)
-pub struct MessageSender {
-    pub tx: Sender<NotifyMessage>
-}
+use models::state::MessageSender;
+use models::message::AppMessage;
+use models::message::NotifyMessage;
+use services::watch::Watcher;
 
 //=============================================================================
 // オーケストレーター（構成管理者）
@@ -82,10 +81,9 @@ pub fn run() {
 
             // 送信機をTauriのStateに登録
             app.manage(MessageSender { tx });
-            app.manage(services::watch_manager::WatchManager::new(tokio_handle.inner()));
+            app.manage(Watcher::new(tokio_handle.inner()));
 
             // バックアップロジックをスレッドで起動
-            // Tauri側のTokioランタイムを使用する
             // let tx_clone = tx.clone();
             // tauri::async_runtime::spawn(async move {
             //     loop {
@@ -105,13 +103,28 @@ pub fn run() {
                 // Receiverにメッセージが届くのを待ち受ける
                 while let Ok(notify_message) = rx.recv() {
 
-                    let log = notify_message.to_ui_message();
-                    println!("{log}");
+                    let message = notify_message.to_ui_message();
+                    println!("{message}");
 
                     // TauriのイベントシステムでJSへ送信
                     // 第一引数: イベント名(自由)
                     // 第二引数: 送信するデータ
-                    let _ = app_handle.emit("backup-event", log);
+                    let _ = app_handle.emit("backup-event", &message);
+
+                    // メインスレッドから通知しないと、Windowsは1度保留にしてしまう
+                    let app_handle_clone = app_handle.clone();
+                    app_handle.run_on_main_thread(move || {
+
+                        // デスクトップ通知を送信
+                        // ※ インストーラを使用しない場合、アプリ名がPowerShellになる
+                        app_handle_clone.notification()
+                            .builder()
+                            .title(&message)
+                            .body(Local::now().to_string())
+                            .show()
+                            .unwrap_or_else(|e| println!("デスクトップ通知に失敗: {:?}", e));
+
+                    }).unwrap_or_else(|e| println!("メインスレッドへの委託に失敗: {:?}", e));
                 }
             });
 
@@ -129,14 +142,4 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![commands::start_backup])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
-}
-
-//=============================================================================
-
-// UIへのデータ転送用構造体
-#[derive(Clone, serde::Serialize)]  // JSONとして渡すため、Serializeを付与
-#[serde(rename_all = "camelCase")]  // シリアライズ時、JSに合わせてキャメルケース化
-struct LogMessage {
-    status: String,
-    message: String,
 }

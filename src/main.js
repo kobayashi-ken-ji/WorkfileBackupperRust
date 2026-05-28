@@ -21,14 +21,14 @@ startButton.addEventListener("click", async () => {
         });
 
         // RustからOkが返った場合
-        statusEl.innerText = response;
-        statusEl.style.color = "green";
+        // statusEl.innerText = response;
+        // statusEl.style.color = "green";
 
     } catch (error) {
 
         // RustからErrが返った場合
-        statusEl.innerText = `エラー: ${error}`;
-        statusEl.style.color = "red";
+        // statusEl.innerText = `エラー: ${error}`;
+        // statusEl.style.color = "red";
     }
 });
 

@@ -1,38 +1,10 @@
+use std::fs;
 use std::path::{Path, PathBuf};
 use std::time::{Duration, SystemTime};
-// use std::thread;
-use std::fs;
-use tokio::time::{sleep};
-// use tokio::fs;
+use tokio::time::sleep;
 
-//=============================================================================
-// 戻り値の型
-//=============================================================================
+use crate::models::message::WaitResult;
 
-/// ファイル書込終了待ちの結果 (UI/ログへの送信用)
-#[derive(Debug, Clone, serde::Serialize)]
-pub enum WaitResult {
-    Success,            // 書込終了を確認した
-    Locked(PathBuf),    // ファイルがロックされている
-    Missing(PathBuf),   // ファイルを見失った
-}
-
-impl WaitResult {
-
-    /// UI表示用メッセージを取得
-    pub fn to_ui_message(&self) -> String {
-        use WaitResult::*;
-        match self {
-            Success        => format!("ファイルの書込みが終了"),  // UIには送信されない想定
-            Locked  (path) => format!("ファイルがロック中: {}", path.display()),
-            Missing (path) => format!("ファイル消失または読取権限なし: {}", path.display()),
-        }
-    }
-}
-
-//=============================================================================
-// 関数
-//=============================================================================
 
 /// 指定ファイルの書込終了まで待機する
 pub async fn wait_file_writing(path: &Path) -> WaitResult {

@@ -1,9 +1,9 @@
-pub mod watch;
+// pub mod watch;
 pub mod backup;
 pub mod extensions;
 pub mod file_wait;
 pub mod file_manager;
-pub mod watch_manager;
+pub mod watch;
 
 // #[cfg(test)]
 // mod tests {

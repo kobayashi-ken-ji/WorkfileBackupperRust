@@ -2,6 +2,7 @@ use std::path::{Path, PathBuf};
 use std::sync::mpsc::{channel, Sender};
 use std::thread;
 use std::time::Duration;
+use tauri::webview::cookie::time::format_description::well_known::iso8601::Config;
 use tauri_plugin_notification::NotificationExt;
 use tauri::{
     menu::{Menu, MenuItem},
@@ -12,83 +13,76 @@ use tauri::{
 use tokio::sync::watch;
 
 use crate::MessageSender;
-use crate::services::{self, watch_manager::WatchManager};
-
-
-//=============================================================================
-// PathBuf周りの注意点
-//=============================================================================
-
-fn test_path_buf(path: String) -> Result<(), String> {
-
-    // String → PathBuf 変換
-    let path_buf = PathBuf::from(&path);
-    println!("有効なパスか: {}", path_buf.exists());
-
-    // PathBuf → String 変換
-    // ※UTF-8として不正な部分は「」に変換する
-    let _path = path_buf.to_string_lossy().into_owned();
-
-    // 正規化 (絶対パス化 + 余計な/や.を削除)
-    // Windowsでは、UNC/拡張接頭辞(\\?\) を付与 (260文字制限を解決)
-    let canonical_path = path_buf.canonicalize()
-        .map_err(|e| format!("パスが正しくない、または存在しない: {e}"))?;
-
-    Ok(())
-}
-
-
-// 拡張接頭辞を外す (UI表示用)
-fn clean_path_for_ui(path: &Path) -> String {
-
-    let path_str = path.to_string_lossy();
-
-    // Windows環境のみ拡張接頭辞を外す
-    #[cfg(windows)]
-    if path_str.starts_with(r"\\?\") {
-        return path_str[4..].to_string()
-    }
-
-    path_str.into_owned()
-}
+use crate::models::message::{AppMessage, NotifyMessage};
+use crate::models::message::WaitResult::Success;
+use crate::services::{self, watch::Watcher};
 
 //=============================================================================
 
 // 画面から呼び出される関数
 // 引数に tauri::AppHandle を追加すると、自動で渡してくれる
 #[tauri::command]
-pub fn start_backup(
-    sender:tauri::State<'_, MessageSender>, manager: tauri::State<'_, WatchManager>,
-    app: tauri::AppHandle, path: String, extension: String) -> Result<String, String> {
+pub async fn start_backup(
+    sender:tauri::State<'_, MessageSender>, watcher: tauri::State<'_, Watcher>,
+    app: tauri::AppHandle, path: String, extension: String) -> Result<(), ()> {
+
+    use crate::models::config::Config;
+
+    let config = Config {
+        source_path: PathBuf::from(r"D:\一時作業ファイル"),
+        destination_path: PathBuf::from(r"E:\old【一時作業】"),
+        is_shown: true,
+        is_notify: true,
+        extensions: [
+            "psd",
+            "sai2",
+            "txt",
+            "tmp",  // ファイル消失テスト
+            "PpP",  // 大文字小文字テスト
+        ].iter().map(|str| str.to_string()).collect()
+    };
+
+    // コンソールへ設定を表示
+    println!("{:#?}", config);
+
+    // 既に開始済みの場合は停止する
+    watcher.stop(Path::new("")).await;
 
     // アプリの処理を記述
     let tx = sender.tx.clone();
-    manager.start(&PathBuf::from(&path), tx).unwrap();
+    let watch_result = watcher.start(&config, tx);
+
+    // Err かどうかもここで返したい
+
+    let tx = sender.tx.clone();
+    let _ = tx.send(NotifyMessage::Start(watch_result));
+
+    // let message = watch_result.to_ui_message();
+
 
     // let tx = state.tx.clone();
     // tauri::async_runtime::spawn(async move {
     //     services::watch::run(tx).unwrap();
     // });
 
-    // println!("開始します");
-
     // デスクトップ通知を送信
     // ※ インストーラを使用しない場合、アプリ名がPowerShellになる
-    app.notification()
-        .builder()
-        .title("バックアップを開始しました")
-        .body(&path)
-        .show()
-        .unwrap();
+    // app.notification()
+    //     .builder()
+    //     .title(&path)
+    //     .body(&path)
+    //     .show()
+    //     .unwrap_or_else(|e| println!("デスクトップ通知に失敗: {:?}", e));
 
     // 画面へのレスポンス
-    Ok(format!("バックアップを開始しました"))
+    // Ok(String::from("使わない"))
+    Ok(())
 }
 
 
 #[tauri::command]
 pub async fn stop_watch(
-    sender:tauri::State<'_, MessageSender>, manager: tauri::State<'_, WatchManager>,
+    sender:tauri::State<'_, MessageSender>, manager: tauri::State<'_, Watcher>,
     app: tauri::AppHandle, path: String, extension: String) -> Result<String, String> {
 
     // アプリの処理を記述

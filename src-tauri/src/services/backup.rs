@@ -1,36 +1,7 @@
 use std::fs;
 use std::path::{PathBuf, Path};
 use chrono::{DateTime, Local};
-
-//=============================================================================
-// 戻り値の型
-//=============================================================================
-
-#[derive(Debug, Clone, serde::Serialize)]
-pub enum BackupResult {
-    Copied          (PathBuf),
-    AlreadyExists   (PathBuf),
-    InvalidFileName (PathBuf),
-    MetadataFailed  { path: PathBuf, error: String },  // std::io::Errorを文字列化
-    ModifiedFailed  { path: PathBuf, error: String },
-    CopyFailed      { path: PathBuf, error: String },
-}
-
-impl BackupResult {
-
-    /// UI表示用メッセージを取得
-    pub fn to_ui_message(&self) -> String {
-        use BackupResult::*;
-        match self {
-            Copied          (path)     => format!("バックアップ: {}", path.display()),
-            AlreadyExists   (path)     => format!("既にバックアップ済み: {}", path.display()),
-            InvalidFileName (path)     => format!("ファイル名の取得に失敗: {}", path.display()),
-            MetadataFailed  {path, ..} => format!("ファイル情報の取得に失敗: {}", path.display()),
-            ModifiedFailed  {path, ..} => format!("最終更新時の取得に失敗: {}", path.display()),
-            CopyFailed      {path, ..} => format!("コピーに失敗: {}", path.display()),
-        }
-    }
-}
+use crate::models::message::BackupResult;
 
 //=============================================================================
 // バックアップ処理
@@ -45,7 +16,7 @@ pub struct FileBackupper {
 impl FileBackupper {
 
     /// コンストラクタ
-    pub fn new(destination: &str) -> Self {
+    pub fn new(destination: &Path) -> Self {
         Self {destination: PathBuf::from(destination)}
     }
 
@@ -115,12 +86,13 @@ impl FileBackupper {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::models::message::AppMessage;
 
     #[test]
     fn one_result() {
 
         // 存在するフォルダ
-        let backupper = FileBackupper::new(r"D:\backuper_test");
+        let backupper = FileBackupper::new(Path::new(r"D:\backuper_test"));
         assert_eq!(backupper.is_valid(), true);
 
         // テストケース
@@ -141,7 +113,7 @@ mod tests {
         //-----------------------------------------
 
         // コピーに失敗させる
-        let backupper = FileBackupper::new(r"D:\存在しないフォルダ");
+        let backupper = FileBackupper::new(Path::new(r"D:\存在しないフォルダ"));
         assert_eq!(backupper.is_valid(), false);
 
         let source = PathBuf::from(paths[0]);
