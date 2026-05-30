@@ -56,9 +56,10 @@ pub async fn wait_file_writing(path: &Path) -> WaitResult {
 
             // ファイルが存在しない、または読取権限がない
             // ファイル消失時(.tmpなど)が続く場合、タイムアウトさせる
-            Err(_) => {
+            Err(error) => {
                 missing_count += 1;
                 if missing_count >= FILE_ERROR_COUNT_MAX {
+                    eprintln!("{error}");
                     return WaitResult::Missing(path.to_path_buf());
                 }
             }

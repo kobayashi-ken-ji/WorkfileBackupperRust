@@ -1,15 +1,44 @@
+
+/* 変数定義 */
+:root {
+    --info-color: #2e7d32;
+    --silent-color: #666666;
+    --error-color: #d32f2f;
+    --dark-color: #e7e7e7;
+}
+/* :root {
+    --info-color: #39a33e;
+    --silent-color: #7c7c7c;
+    --error-color: #d32f2f;
+    --dark-color: #244475;
+} */
+
 body {
     font-family: sans-serif;
     padding: 20px;
     background: #f9f9f9;
     color: #333;
+    font-size: 90%;
 }
 
-.form-group {
-    margin-bottom: 15px;
+h2 {
+    margin-top: 0px;
 }
 
-label {
+.margin-bottom {
+    margin-bottom: 25px;
+}
+
+/* ログ上側 */
+.bg-dark {
+    background-color: var(--dark-color);
+    /* color: white; */
+    font-weight: bold;
+    padding: 5px 20px;
+    border-radius: 3px 3px 0 0;
+}
+
+label, legend {
     display: block;
     margin-bottom: 5px;
     font-weight: bold;
@@ -21,20 +50,138 @@ input {
     box-sizing: border-box;
 }
 
+/* ボタン部分を改行させない */
+input[type="checkbox"],
+input[type="radio"] {
+    width: auto;
+    padding: 0px;
+}
+
 button {
     padding: 10px 20px;
     background: #007acc;
     color: white;
     border: none;
     cursor: pointer;
+    width: 120px;
+    margin: 5px;
 }
 
 button:hover {
     background: #005999;
 }
 
-#status {
+/* 無効化中はグレーアウト */
+button:disabled {
+    background-color: #cccccc;
+    color: #444;
+    cursor: not-allowed;    /* カーソルを禁止マークに */
+    opacity: 0.7;
+}
+
+#log {
     margin-top: 20px;
     font-weight: bold;
     color: green;
 }
+
+.extensions {
+    border: none;
+    padding: 0px;
+}
+
+/* 水平方向の中央揃え */
+.center {
+    display: flex;
+    justify-content: center;
+}
+
+/* 画面全体のグレーアウトレイヤー */
+#loading-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100vw;   /* Viewport Width = 画面全体*/
+    height: 100vh;
+    background-color: rgba(0, 0, 0, 0.5); /* グレー濃度 */
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    z-index: 9999;  /* 一番手前に表示 */
+    color: white;
+    font-family: sans-serif;
+}
+
+/* 読込中スピナーの見た目 */
+.spinner {
+    width: 40px;
+    height: 40px;
+    border: 5px solid rgba(255, 255, 255, 0.3);
+    border-top-color: white;
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+    margin-right: 20px;
+}
+
+@keyframes spin {
+    to { transform: rotate(360deg); }
+}
+
+
+/* ログ下側 */
+.log-box {
+    height: 150px;
+    overflow-y: auto;
+    background: #ffffff;
+    border: 1px solid var(--dark-color);
+    padding: 8px;
+    font-size: 14px;
+    border-radius: 0 0 3px 3px;
+    /* box-shadow: 0 1px 0 0 rgba(0, 0, 0, 0.1); */
+}
+
+/* ログ 横一列 (種類ごとに色分け) */
+.log-item {
+    margin: 2px 0px;
+    line-height: 1.4;
+}
+.log-item.log-info   { color: var(--info-color); }      /* 成功：緑*/
+.log-item.log-silent { color: var(--silent-color); }    /* 軽度の情報：灰 */
+.log-item.log-error  { color: var(--error-color); }     /* エラー：赤*/
+
+
+/* ログ時刻 */
+.log-time {
+    margin: 4px 0px;
+    /* color: #888; */
+    font-family: monospace;  /* 等幅で時間をそろえる*/
+    margin-right: 4px;
+}
+
+/* ログタイトル   背景:濃色, 文字:白色 */
+.log-title {
+    font-weight: bold;
+    padding: 0px 6px;
+    margin-right: 6px;
+    /*     
+    color: white;
+    border-radius: 3px;
+    opacity: 0.6;
+     */
+    /* 背景色を薄くする */
+}
+/* 
+.log-title.log-info   { background-color: var(--info-color); }
+.log-title.log-silent { background-color: var(--silent-color); }
+.log-title.log-error  { background-color: var(--error-color); }
+ */
+
+/* ログ本文 */
+.log-body {
+    word-break: break-all;  /* 枠内で折り返す*/
+}
+
+
+
+

@@ -4,26 +4,56 @@
     <meta charset="UTF-8">
     <title>バックアップ設定</title>
     <link rel="stylesheet" href="styles.css" />
+    <script src="main.js" type="module" defer></script>
 </head>
-<body>
 
-    <h2>自動バックアップ設定</h2>
+<!-- 設定を読み込むまでは操作不能 -->
+<body inert>
 
-    <div class="form-group">
-        <label for="path">対象フォルダのパス</label>
-        <input type="text" id="path" value="D:\一時作業ファイル">
+    <!-- ローディングオーバーレイ -->
+    <div id="loading-overlay">
+        <div class="spinner"></div>
+        <p>設定を読込中...</p>
     </div>
 
-    <dev class="form-group">
-        <label for="ext">拡張子</label>
-        <input type="text" id="ext" value=".psd">
-    </dev>
+    <!-- メインコンテンツ -->
+    <h2>自動バックアップ設定</h2>
 
-    <button id="start-btn">開始</button>
-    <button id="hide-btn" style="background: #666; margin-left: 10px">トレイに格納</button>
+    <div class="margin-bottom">
+        <label for="source-path">バックアップ元パス (監視するフォルダ)</label>
+        <input type="text" id="source-path" value="読込中">
+    </div>
 
-    <p id="status"></p>
+    <div class="margin-bottom">
+        <label for="destination-path">バックアップ先パス</label>
+        <input type="text" id="destination-path" value="読込中">
+    </div>
 
-    <script src="main.js" type="module"></script>
+    <div class="margin-bottom">
+        <label for="destination-path">バックアップする拡張子 (スペースまたはカンマ区切り)</label>
+        <input type="text" id="extensions" value="読込中">
+    </div>
+
+    <div class="margin-bottom">
+        <label>
+            <input type="checkbox" id="is-shown" />
+            アプリ起動時にこの画面を開く
+        </label>
+
+        <label>
+            <input type="checkbox" id="is-notify" />
+            デスクトップ通知をする
+        </label>
+    </div>
+
+    <div class="center margin-bottom">
+        <button id="start-btn" disabled>開始</button>
+        <button id="stop-btn" disabled>停止</button>
+    </div>
+    <!-- <button id="hide-btn" style="background: #666; margin-left: 10px">トレイに格納</button> -->
+
+    <div class="bg-dark">ログ</div>
+    <div id="log-box" class="log-box"></div>
+    
 </body>
 </html>

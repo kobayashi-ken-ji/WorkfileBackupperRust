@@ -20,9 +20,10 @@ use tauri::{
 };
 
 use models::state::MessageSender;
-use models::message::AppMessage;
-use models::message::NotifyMessage;
+use models::message::NotifyDTO;
 use services::watch::Watcher;
+
+use crate::models::message::NotifyLevel;
 
 //=============================================================================
 // オーケストレーター（構成管理者）
@@ -77,39 +78,38 @@ pub fn run() {
             let tokio_handle = tauri::async_runtime::handle();
             
             // 送信機/受信機を生成
-            let (tx, rx) = channel::<NotifyMessage>();
+            let (tx, rx) = channel::<NotifyDTO>();
 
             // 送信機をTauriのStateに登録
             app.manage(MessageSender { tx });
             app.manage(Watcher::new(tokio_handle.inner()));
 
-            // バックアップロジックをスレッドで起動
-            // let tx_clone = tx.clone();
-            // tauri::async_runtime::spawn(async move {
-            //     loop {
-            //         // tokio::~でTauri側のランタイムを使用できる
-            //         tokio::time::sleep(Duration::from_secs(5)).await;
-            //         let _ = tx_clone.send(LogMessage {
-            //             status: "success".to_string(),
-            //             message: "バックアップしました".to_string(),
-            //         });
-            //     }
-            // });
 
             // Tauri用「受信・画面転送」専用スレッドを起動
             let app_handle = app.handle().clone();
             tauri::async_runtime::spawn(async move {
 
                 // Receiverにメッセージが届くのを待ち受ける
-                while let Ok(notify_message) = rx.recv() {
+                while let Ok(dto) = rx.recv() {
 
-                    let message = notify_message.to_ui_message();
-                    println!("{message}");
+                    // let NotifyDTO {level, title, body} = dto.clone();
+                    let message = format!("{}: {}", dto.title, dto.body);
+
+                    // デバッグ時のみコンソールへ表示
+                    if cfg!(debug_assertions) {
+                        println!("{message}");
+                    }
+
+                    // Debug → コンソール以外には表示しない
+                    if dto.level == NotifyLevel::Debug { continue; }
 
                     // TauriのイベントシステムでJSへ送信
                     // 第一引数: イベント名(自由)
                     // 第二引数: 送信するデータ
-                    let _ = app_handle.emit("backup-event", &message);
+                    let _ = app_handle.emit("log-event", &dto);
+
+                    // Silent → デスクトップ通知をしない
+                    if dto.level == NotifyLevel::Silent { continue; }
 
                     // メインスレッドから通知しないと、Windowsは1度保留にしてしまう
                     let app_handle_clone = app_handle.clone();
@@ -119,12 +119,14 @@ pub fn run() {
                         // ※ インストーラを使用しない場合、アプリ名がPowerShellになる
                         app_handle_clone.notification()
                             .builder()
-                            .title(&message)
-                            .body(Local::now().to_string())
+                            .title(dto.title)
+                            .body(dto.body)
                             .show()
-                            .unwrap_or_else(|e| println!("デスクトップ通知に失敗: {:?}", e));
+                            .unwrap_or_else(|e| eprintln!("デスクトップ通知に失敗: {:?}", e));
 
-                    }).unwrap_or_else(|e| println!("メインスレッドへの委託に失敗: {:?}", e));
+                    }).unwrap_or_else(|e| eprintln!("メインスレッドへの委託に失敗: {:?}", e));
+
+                    // Local::now().to_string()
                 }
             });
 
@@ -139,7 +141,12 @@ pub fn run() {
             }
         })
 
-        .invoke_handler(tauri::generate_handler![commands::start_backup])
+        // JavaScriptへ関数を登録する
+        .invoke_handler(tauri::generate_handler![
+            commands::get_config,
+            commands::start_watching,
+            commands::stop_watching,
+        ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }

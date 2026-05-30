@@ -34,13 +34,19 @@ impl FileBackupper {
         // メタデータの取得
         let metadata = match fs::metadata(path) {
             Ok(metadata) => metadata,
-            Err(e) => return MetadataFailed { path:path.to_path_buf(), error:e.to_string() },
+            Err(error) => {
+                eprintln!("{error}");
+                return MetadataFailed(path.to_path_buf());
+            }
         };
 
         // 最終更新時を取得
         let system_time = match metadata.modified() {
             Ok(time) => time,
-            Err(e) => return ModifiedFailed { path:path.to_path_buf(), error:e.to_string() },
+            Err(error) => {
+                eprintln!("{error}");
+                return ModifiedFailed(path.to_path_buf());
+            }
         };
 
         // 更新時 → ローカルタイムゾーン → YYYYMMDD_HHMMSS形式 へ変換
@@ -74,7 +80,10 @@ impl FileBackupper {
         // バックアップ実行
         match fs::copy(path, &new_path) {
             Ok(_)  => Copied(new_path),
-            Err(e) => CopyFailed { path: new_path, error: e.to_string() },
+            Err(error) => {
+                eprintln!("{error}");
+                return CopyFailed(new_path);
+            }
         }
     }
 }
@@ -86,7 +95,7 @@ impl FileBackupper {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::models::message::AppMessage;
+    use crate::models::message::{Notify};
 
     #[test]
     fn one_result() {
@@ -105,7 +114,8 @@ mod tests {
         for path in paths {
             let source = PathBuf::from(path);
             let result = backupper.backup_file(&source);
-            println!("{}", result.to_ui_message());
+            let dto = result.get_dto();
+            println!("{}: {}", dto.title, dto.body);
             println!("{:?}", result);
             println!();
         }
@@ -118,7 +128,8 @@ mod tests {
 
         let source = PathBuf::from(paths[0]);
         let result = backupper.backup_file(&source);
-        println!("{}", result.to_ui_message());
+        let dto = result.get_dto();
+        println!("{}: {}", dto.title, dto.body);
         println!("{:?}", result);
         assert!(matches!(result, BackupResult::CopyFailed{..}));
     }

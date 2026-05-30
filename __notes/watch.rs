@@ -62,7 +62,7 @@ impl WatchInfo {
 // フォルダ内監視
 //=============================================================================
 
-pub fn run(tx: Sender<NotifyMessage>) -> Result<()> {
+pub fn run(tx: Sender<NotifyDTO>) -> Result<()> {
 
     // バックアップ対象にする拡張子のリスト
     let mut extensions = Extensions::new();

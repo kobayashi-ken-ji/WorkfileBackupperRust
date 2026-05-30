@@ -15,6 +15,25 @@ pub struct Config {
     pub is_notify: bool,            // デスクトップ通知をする
 }
 
+// デフォルト値を定義
+impl Default for Config {
+    fn default() -> Self {
+        Self {
+            source_path: PathBuf::from(r"D:\一時作業ファイル"),
+            destination_path: PathBuf::from(r"E:\old【一時作業】"),
+            extensions: vec![
+                String::from("txt"),
+                String::from("psd"),
+                String::from("sai2"),
+                String::from("jpg"),
+                String::from("tmp"),    // ファイル消失テスト
+                String::from("PpP"),    // 大文字小文字テスト
+            ],
+            is_shown: true,
+            is_notify: true,
+        }
+    }
+}
 
 impl Config {
 
@@ -54,20 +73,6 @@ impl Config {
         fs::read_to_string(path)
             .and_then(|content| serde_json::from_str(&content).map_err(|e| e.into()))
             .unwrap_or_else(|_| Self::default())    // 失敗時はデフォルト値
-    }
-}
-
-
-// デフォルト値を定義
-impl Default for Config {
-    fn default() -> Self {
-        Self {
-            source_path: PathBuf::new(),
-            destination_path: PathBuf::new(),
-            extensions: Vec::new(),
-            is_shown: true,
-            is_notify: true,
-        }
     }
 }
 
