@@ -114,7 +114,7 @@ mod tests {
         for path in paths {
             let source = PathBuf::from(path);
             let result = backupper.backup_file(&source);
-            let dto = result.get_dto();
+            let dto = result.to_dto();
             println!("{}: {}", dto.title, dto.body);
             println!("{:?}", result);
             println!();
@@ -128,7 +128,7 @@ mod tests {
 
         let source = PathBuf::from(paths[0]);
         let result = backupper.backup_file(&source);
-        let dto = result.get_dto();
+        let dto = result.to_dto();
         println!("{}: {}", dto.title, dto.body);
         println!("{:?}", result);
         assert!(matches!(result, BackupResult::CopyFailed{..}));

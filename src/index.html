@@ -36,13 +36,16 @@
 
     <div class="margin-bottom">
         <label>
+            <input type="checkbox" id="is-notify" />
+            デスクトップ通知をする
+        </label>
+        <label>
             <input type="checkbox" id="is-shown" />
             アプリ起動時にこの画面を開く
         </label>
-
         <label>
-            <input type="checkbox" id="is-notify" />
-            デスクトップ通知をする
+            <input type="checkbox" id="auto-start" />
+            アプリ起動時に自動で開始する
         </label>
     </div>
 
@@ -50,7 +53,6 @@
         <button id="start-btn" disabled>開始</button>
         <button id="stop-btn" disabled>停止</button>
     </div>
-    <!-- <button id="hide-btn" style="background: #666; margin-left: 10px">トレイに格納</button> -->
 
     <div class="bg-dark">ログ</div>
     <div id="log-box" class="log-box"></div>

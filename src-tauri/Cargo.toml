@@ -2,7 +2,7 @@
 name = "workfile-backupper"
 version = "0.1.0"
 description = "A Tauri App"
-authors = ["you"]
+authors = ["Kobayashi Kenji"]
 edition = "2021"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
@@ -27,4 +27,5 @@ chrono = "0.4.44"
 tokio = { version = "1.52.3", features = ["full"] }
 futures = "0.3.32"
 notify-debouncer-full = "0.7.0"
+tauri-plugin-single-instance = "2.4.2"
 

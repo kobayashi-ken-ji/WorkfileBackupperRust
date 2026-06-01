@@ -6,7 +6,27 @@ use tokio::runtime;
 use futures::future::BoxFuture;
 
 //=============================================================================
-// ファイル管理のメインの構造体
+// RAII用ガード
+//=============================================================================
+
+/// スコープを抜けた際に、自動で処理中リストからファイルを削除する
+struct FileTaskGuard {
+    path: PathBuf,
+    active_files: Arc<Mutex<  HashSet<PathBuf>  >>,
+}
+
+impl Drop for FileTaskGuard {
+    fn drop(&mut self) {
+
+        // 処理中リストをロックし、リストからファイルを削除
+        if let Ok(mut lock_files) = self.active_files.lock() {
+            lock_files.remove(&self.path);
+        }
+    }
+}
+
+//=============================================================================
+// 本体
 //=============================================================================
 
 /// 処理中のファイルを管理
@@ -37,7 +57,11 @@ impl ActiveFileManager  {
             tasks: tokio::sync::Mutex::new(JoinSet::new()),
             handle: handle,
 
-            // Tauri版では、現在動いているTauri（Tokio）のランタイムのハンドルを捕まえる
+            // Tauri以外で使わないのなら、以下でも可能
+            // handle: tauri::async_runtime::handle().inner().clone(),
+
+            // 現在動いているTauri（Tokio）のランタイムのハンドルを捕まえる
+            // ※ Tauriではエラーとなった
             // handle: runtime::Handle::current(), 
         }
     }
@@ -111,25 +135,5 @@ impl ActiveFileManager  {
             // join_next()
             // いずれかのタスクの完了を待機する
             // JoinSet内が空の場合はNoneが返る
-    }
-}
-
-//=============================================================================
-// RAII用ガード
-//=============================================================================
-
-/// スコープを抜けた際に、自動で処理中リストからファイルを削除する
-struct FileTaskGuard {
-    path: PathBuf,
-    active_files: Arc<Mutex<  HashSet<PathBuf>  >>,
-}
-
-impl Drop for FileTaskGuard {
-    fn drop(&mut self) {
-
-        // 処理中リストをロックし、リストからファイルを削除
-        if let Ok(mut lock_files) = self.active_files.lock() {
-            lock_files.remove(&self.path);
-        }
     }
 }

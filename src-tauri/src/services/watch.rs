@@ -1,21 +1,18 @@
-use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
-use std::sync::mpsc::{Sender, Receiver, channel};
+use std::sync::mpsc::{Sender};
 use std::time::Duration;
-use futures::channel::mpsc;
-use tokio::runtime::Runtime;
 use futures::FutureExt;
 use notify_debouncer_full::{notify::*, DebounceEventResult, new_debouncer, Debouncer, RecommendedCache};
-use notify_debouncer_full::notify::{self, RecommendedWatcher};
+use notify_debouncer_full::notify::{RecommendedWatcher};
 use std::convert::From;
 
 use crate::models::config::Config;
 use crate::models::message::{
-    BackupResult, Notify, NotifyDTO, StartResult, StopResult, WaitResult, WatchInfo
+    Notify, NotifyPackage, StartResult, StopResult, WaitResult, WatchInfo
 };
 
-use crate::services::file_manager::{self, ActiveFileManager};
-use crate::services::file_wait::{wait_file_writing};
+use crate::services::file_manager::{ActiveFileManager};
+use crate::services::wait::wait_for_file_writing;
 use crate::services::backup::{FileBackupper};
 use crate::services::extensions::Extensions;
 
@@ -27,9 +24,6 @@ pub struct Watcher {
     // TauriのStateへの登録は固定のまま、デバウンサだけ使い捨てにする
     // Optionが Ok→稼働中、None→停止中
     debouncer: Mutex<Option<Debouncer<RecommendedWatcher, RecommendedCache>>>,
-
-    // Tokioランタイムのハンドル
-    tokio_handle: tokio::runtime::Handle,
 }
 
 impl Watcher {
@@ -44,17 +38,15 @@ impl Watcher {
         Self {
             file_manager: Arc::new(ActiveFileManager::new(tokio_handle.clone())),
             debouncer: Mutex::new(None),
-            tokio_handle: tokio_handle.clone(),
         }
     }
 
 
     /// 「開始」ボタンが押されたときの処理
     /// 戻り値： フォルダ監視の開始に成功したか
-    pub fn start(&self, config: &Config, tx: Sender<NotifyDTO>) -> StartResult {
+    pub fn start(&self, config: &Config, tx: Sender<NotifyPackage>) -> std::result::Result<(), ()> {
 
         use StartResult::*;
-        const SEND_ERROR: &'static str = "メッセージ受信機がドロップされています";
 
         // バックアップ対象にする拡張子のリスト
         let extensions = Extensions::from(config.extensions.as_slice());
@@ -65,7 +57,8 @@ impl Watcher {
             Ok(path) => path,
             Err(error) => {
                 eprintln!("{error}");
-                return InvalidSourcePath(config.source_path.clone());
+                InvalidSourcePath(config.source_path.clone()).send(&tx);
+                return Err(());
             }
         };
         
@@ -74,7 +67,8 @@ impl Watcher {
             Ok(path) => path,
             Err(error) => {
                 eprintln!("{error}");
-                return InvalidDestinationPath(config.destination_path.clone());
+                InvalidDestinationPath(config.destination_path.clone()).send(&tx);
+                return Err(());
             }
         };
 
@@ -82,14 +76,12 @@ impl Watcher {
         let backupper = FileBackupper::new(&destination_path);
         if !backupper.is_valid() {
             // バックアップ先がフォルダではない
-            return InvalidDestinationPath(destination_path);
+            InvalidDestinationPath(destination_path).send(&tx);
+            return Err(());
         }
 
         //---------------------------------------------------------------
         
-        // // [!] unwrap処理を忘れずに
-        // let mut lock_debouncer = self.debouncer.lock().unwrap();
-
         // 処理中ファイルのリストを排他ロックする
         let mut lock_debouncer = match self.debouncer.lock() {
             Ok(guard) => guard,
@@ -101,7 +93,8 @@ impl Watcher {
 
         // 既に開始していたら終了 (二重起動防止)
         if lock_debouncer.is_some() {
-            return AlreadyRunning;
+            AlreadyRunning.send(&tx);
+            return Err(());
         }
 
         // クローン用の中間変数
@@ -109,6 +102,7 @@ impl Watcher {
 
         // デバウンサ (2秒間イベントが途切れるのを待つ)
         // 毎回新しく生成
+        let tx_clone = tx.clone();
         let debouncer = new_debouncer(Duration::from_secs(2), None, move |result: DebounceEventResult| {
             match result {
                 Ok(events) => {
@@ -126,15 +120,13 @@ impl Watcher {
 
                             // 対象拡張子かをチェック
                             if !extensions.contains(&path) {
-                                let info = WatchInfo::UnspecifiedExtension(path);
-                                tx.send(info.get_dto()).expect(SEND_ERROR);
+                                WatchInfo::UnspecifiedExtension(path).send(&tx);
                                 continue;
                             }
 
                             // 変更検出を通知
-                            let info = WatchInfo::ModificationDetected(path.clone());
-                            tx.send(info.get_dto()).expect(SEND_ERROR);
-                            
+                            WatchInfo::ModificationDetected(path.clone()).send(&tx);
+
                             // move用にコピー
                             let tx = tx.clone();
                             let backupper = backupper.clone();
@@ -143,17 +135,16 @@ impl Watcher {
                             file_manager_clone.execute(&path, |path| {
                                 async move {
                                     // 書込みが終了するまで待機
-                                    let result = wait_file_writing(&path).await;
+                                    let result = wait_for_file_writing(&path).await;
                                     match result {
 
                                         // 待機成功時: ファイルをバックアップ
                                         WaitResult::Success => {
-                                            let result = backupper.backup_file(&path);
-                                            tx.send(result.get_dto()).expect(SEND_ERROR);
+                                            backupper.backup_file(&path).send(&tx);
                                         }
 
                                         // 待機失敗時: メッセージを送信
-                                        _ => {tx.send(result.get_dto()).expect(SEND_ERROR)}
+                                        _ => result.send(&tx),
                                     }
                                 }.boxed()
                             });
@@ -162,8 +153,7 @@ impl Watcher {
                 }
                 Err(errors) => {
                     eprintln!("{:#?}", errors);
-                    let info = WatchInfo::DebounceError;
-                    tx.send(info.get_dto()).expect(SEND_ERROR);
+                    WatchInfo::DebounceError.send(&tx);
                 }
             }
         });
@@ -172,20 +162,24 @@ impl Watcher {
             Ok(debouncer) => debouncer,
             Err(error) => {
                 eprintln!("{error}");
-                return NewDebouncerFailed;
+                NewDebouncerFailed.send(&tx_clone);
+                return Err(());
             }
         };
 
         // フォルダを監視対象に登録 (NonRecursive = サブフォルダを含まない)
         if let Err(error) = debouncer.watch(watch_path.clone(), RecursiveMode::NonRecursive) {
             eprintln!("{error}");
-            return DebounceStartFailed(watch_path);
+            DebounceStartFailed(watch_path).send(&tx_clone);
+            return Err(());
         };
 
-        // デバウンサを自身に保持
+        // デバウンサをフィールドに保持
         *lock_debouncer = Some(debouncer);
 
-        Success
+        // フォルダ監視開始の成功を通知
+        Success.send(&tx_clone);
+        Ok(())
     }
 
 
@@ -212,7 +206,7 @@ impl Watcher {
             if let Some(debouncer) = lock_debouncer.take() {
 
                 // フォルダ監視を解除
-                let _ = debouncer.stop_nonblocking();
+                debouncer.stop_nonblocking();
 
                 // スコープを抜ける時、
                 // debouncerがドロップ(引数のクロージャも含む) → 使い捨て完了

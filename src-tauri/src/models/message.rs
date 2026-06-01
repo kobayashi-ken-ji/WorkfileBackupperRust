@@ -1,4 +1,7 @@
 use std::path::{Path, PathBuf};
+use std::sync::mpsc::{Sender};
+
+use crate::models::eprint::ResutlErrPrint;
 
 //=============================================================================
 // UI/ログへの送信用の型
@@ -6,8 +9,23 @@ use std::path::{Path, PathBuf};
 
 // 各関数の戻り値に実装するトレイト
 pub trait Notify {
-    /// UI/ログへの送信用の型に変換
-    fn get_dto(&self) -> NotifyDTO;
+
+    /// UI/ログへのデータ型に変換
+    fn to_dto(&self) -> NotifyDTO;
+
+    /// 自身のデータを送信
+    fn send(&self, tx: &Sender<NotifyPackage>) {
+        const SEND_ERROR: &str = "メッセージ受信機がドロップされています";
+        let package = NotifyPackage::Message(self.to_dto());
+        tx.send(package).eprint(SEND_ERROR);
+    }
+}
+
+
+/// UI/ログへの送信機に渡す型
+pub enum NotifyPackage {
+    Message(NotifyDTO),          // 通常の通知データ
+    Config { is_notify: bool },  // デスクトップ通知のON/OFF切替えを指示
 }
 
 
@@ -46,7 +64,7 @@ pub enum WatchInfo {
 
 impl Notify for WatchInfo {
 
-    fn get_dto(&self) -> NotifyDTO {
+    fn to_dto(&self) -> NotifyDTO {
         use WatchInfo::*;
         use NotifyLevel::*;
 
@@ -74,7 +92,7 @@ pub enum StartResult {
 
 impl Notify for StartResult {
 
-    fn get_dto(&self) -> NotifyDTO {
+    fn to_dto(&self) -> NotifyDTO {
         use StartResult::*;
         use NotifyLevel::*;
     
@@ -82,7 +100,7 @@ impl Notify for StartResult {
             Success                      => (Info,  "バックアップを開始しました", "".into()),
             InvalidSourcePath(path)      => (Error, "バックアップ元フォルダが無効", clean_path(path)),
             InvalidDestinationPath(path) => (Error, "バックアップ先フォルダが無効", clean_path(path)),
-            AlreadyRunning               => (Silent, "既にフォルダ監視中", "".into()),  // 起こらない想定
+            AlreadyRunning               => (Info,  "既にフォルダ監視中", "".into()),
             NewDebouncerFailed           => (Error, "フォルダの監視開始に失敗", "デバウンサーの生成に失敗".into()),
             DebounceStartFailed(path)    => (Error, "フォルダの監視開始に失敗", clean_path(path)),
         };
@@ -101,13 +119,13 @@ pub enum StopResult {
 
 impl Notify for StopResult {
 
-    fn get_dto(&self) -> NotifyDTO {
+    fn to_dto(&self) -> NotifyDTO {
         use StopResult::*;
         use NotifyLevel::*;
     
         let (level, title, body) = match self {
-            Success        => (Info,   "バックアップを停止しました", "".into()),
-            AlreadyStopped => (Silent, "既に停止済み", "".into()),  // 起こらない想定
+            Success        => (Info, "バックアップを停止しました", "".into()),
+            AlreadyStopped => (Info, "既に停止済み", "".into()),
         };
 
         NotifyDTO { level, title, body }
@@ -128,7 +146,7 @@ pub enum WaitResult {
 
 impl Notify for WaitResult {
 
-    fn get_dto(&self) -> NotifyDTO {
+    fn to_dto(&self) -> NotifyDTO {
         use WaitResult::*;
         use NotifyLevel::*;
     
@@ -159,7 +177,7 @@ pub enum BackupResult {
 
 impl Notify for BackupResult {
     
-    fn get_dto(&self) -> NotifyDTO {
+    fn to_dto(&self) -> NotifyDTO {
         use BackupResult::*;
         use NotifyLevel::*;
 
@@ -210,27 +228,8 @@ fn get_filename(path: &Path) -> String {
 
 // ※ 現在不使用
 /// 相対パス名のみ抽出 (エラー時はそのまま返す)
-fn get_relative_path(path: &Path, base: &Path) -> PathBuf {
+fn _get_relative_path(path: &Path, base: &Path) -> PathBuf {
     path.strip_prefix(base)
         .unwrap_or(path)
         .to_path_buf()
 }
-
-
-// fn test_path_buf(path: String) -> Result<(), String> {
-
-//     // String → PathBuf 変換
-//     let path_buf = PathBuf::from(&path);
-//     println!("有効なパスか: {}", path_buf.exists());
-
-//     // PathBuf → String 変換
-//     // ※UTF-8として不正な部分は「」に変換する
-//     let _path = path_buf.to_string_lossy().into_owned();
-
-//     // 正規化 (絶対パス化 + 余計な/や.を削除)
-//     // Windowsでは、UNC/拡張接頭辞(\\?\) を付与 (260文字制限を解決)
-//     let canonical_path = path_buf.canonicalize()
-//         .map_err(|e| format!("パスが正しくない、または存在しない: {e}"))?;
-
-//     Ok(())
-// }

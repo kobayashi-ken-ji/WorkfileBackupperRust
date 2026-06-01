@@ -1,5 +1,5 @@
 use std::fs;
-use std::path::{Path, PathBuf};
+use std::path::{Path};
 use std::time::{Duration, SystemTime};
 use tokio::time::sleep;
 
@@ -7,7 +7,7 @@ use crate::models::message::WaitResult;
 
 
 /// 指定ファイルの書込終了まで待機する
-pub async fn wait_file_writing(path: &Path) -> WaitResult {
+pub async fn wait_for_file_writing(path: &Path) -> WaitResult {
     
     /// ファイルをチェックする間隔
     const CHECK_INTERVAL: Duration = Duration::from_secs(3);

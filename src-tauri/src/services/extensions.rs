@@ -4,7 +4,7 @@
 
 use std::collections::HashSet;
 use std::ffi::OsString;
-use std::path::{Path, PathBuf};
+use std::path::{Path};
 
 
 // 拡張子のリスト (バックアップ対象の判別用)

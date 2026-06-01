@@ -21,8 +21,9 @@ const DOM = {
     sourcePath      : document.getElementById("source-path"),
     destinationPath : document.getElementById("destination-path"),
     extensions      : document.getElementById("extensions"),
-    isShown         : document.getElementById("is-shown"),
     isNotify        : document.getElementById("is-notify"),
+    isShown         : document.getElementById("is-shown"),
+    autoStart       : document.getElementById("auto-start"),
 
     // 操作ボタン
     startBtn        : document.getElementById("start-btn"),
@@ -39,10 +40,10 @@ const DOM = {
 
 (async () => {
     // 各ボタンにイベントリスナーを設定
-    DOM.startBtn.addEventListener("click", onStartButton);
-    DOM.stopBtn.addEventListener("click", onStopButton);
+    await DOM.startBtn.addEventListener("click", onStartButton);
+    await DOM.stopBtn.addEventListener("click", onStopButton);
 
-    initEventListener();
+    await initEventListener();
     loadConfig();
 })();
 
@@ -52,7 +53,7 @@ const DOM = {
 
 /** 設定ファイルを読み込む */
 async function loadConfig() {
-
+    // console.log(invoke);
     // Rust側関数を実行
     let config = await invoke("get_config");
 
@@ -69,8 +70,12 @@ async function loadConfig() {
     DOM.sourcePath.value      = config.sourcePath;
     DOM.destinationPath.value = config.destinationPath;
     DOM.extensions.value      = config.extensions.join(" "); // 配列→文字列
-    DOM.isShown.checked       = config.isShown;
     DOM.isNotify.checked      = config.isNotify;
+    DOM.isShown.checked       = config.isShown;
+    DOM.autoStart.checked     = config.autoStart;
+
+    // 自動開始設定の処理
+    if (config.autoStart) onStartButton();
 }
 
 
@@ -92,33 +97,24 @@ async function onStartButton() {
         sourcePath      : DOM.sourcePath.value,
         destinationPath : DOM.destinationPath.value,
         extensions      : extensionsArray,
-        isShown         : DOM.isShown.checked,
         isNotify        : DOM.isNotify.checked,
+        isShown         : DOM.isShown.checked,
+        autoStart       : DOM.autoStart.checked,
     };
 
     try {
         // Rust側の関数を呼び出す
         // 引数名はRust側と一致させる ※ オブジェクトで指定
         const response = await invoke("start_watching", {config: config});
+        
+        // RustからOkが返った場合
         DOM.stopBtn.disabled = false;
 
-        
-        // const response = await invoke("start_watching", {
-        //     path: pathInput,
-        //     extension: extInput
-        // });
-
-        // RustからOkが返った場合
-        // statusEl.innerText = response;
-        // statusEl.style.color = "green";
-
     } catch (error) {
-        DOM.startBtn.disabled = false;
-        console.log("開始ボタン失敗: "+ error);
 
         // RustからErrが返った場合
-        // statusEl.innerText = `エラー: ${error}`;
-        // statusEl.style.color = "red";
+        DOM.startBtn.disabled = false;
+        console.log("開始ボタン失敗: "+ error);
     }
 }
 
@@ -191,11 +187,16 @@ async function onStopButton() {
 // Rustから受信する
 //=============================================================================
 
-/** Rustからのイベントを監視する */
+/** Rustからのイベントのリスナーを登録する */
 async function initEventListener() {
 
     // Rust側のイベント名と合わせる
     await listen("log-event", (event) => {
+
+        if (!DOM.logBox) { 
+            console.log("DOM.logBox がありません");
+            return;
+        }
 
         // Rustからの送信されたデータを取り出す
         const dto = event.payload;
@@ -205,28 +206,13 @@ async function initEventListener() {
         // 現在時刻を文字列化 (HH:MM 形式)
         const date = new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit"});
 
-        // const now = new Date();
-        // const timeStr = `[${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}:${now.getSeconds().toString().padStart(2, '0')}]`;
-
-        // ログに表示する
-        // DOM.log.innerText = `[${date}] ${title}`;
-
-
-        if (!DOM.logBox) return;
-
         // 新しいログ要素を作成 (p or div)
         const logItem = document.createElement("div");
 
         // ログの種類に応じてCSSを適用
-        // const type = "error";
-        // logItem.classList.add("log-item", `log-${level}`);
         logItem.classList.add("log-item", `log-${level}`);
 
-        // console.log(logItem);
-        // console.log(logItem.textContent);
-
         // テキストを設定 (タイムスタンプ + メッセージ)
-        // logItem.textContent = `[${date}] ${log}`;
         logItem.innerHTML = `
             <span class="log-time">${date}</span>
             <span class="log-title log-${level}">${title}</span>
@@ -240,31 +226,10 @@ async function initEventListener() {
         if (DOM.logBox.children.length > 1000) {
             DOM.logBox.removeChild(DOM.logBox.lastChild);
         }
-        // console.log(`状況: ${log.log}, メッセージ: ${log.message}`);
-        // statusEl.innerText = `[${new Date().toLocaleTimeString()}] ${log.message}`;
     });
+
+
+    // フォルダ監視の 開始/終了
+    await listen("start", onStartButton);
+    await listen("stop" , onStopButton);
 }
-
-// /** Rustからのイベントを監視する */
-// async function initEventListener() {
-
-//     // Rust側のイベント名と合わせる
-//     await listen("log-event", (event) => {
-
-//         // Rustからの送信されたデータを取り出す
-//         const log = event.payload;
-//         // console.log(log);
-
-//         // 現在時刻を文字列化 (HH:MM 形式)
-//         const date = new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
-
-//         // ログに表示する
-//         // const statusEl = document.getElementById("log");
-//         DOM.log.innerText = `[${date}] ${log}`;
-
-//         // console.log(`状況: ${log.log}, メッセージ: ${log.message}`);
-//         // statusEl.innerText = `[${new Date().toLocaleTimeString()}] ${log.message}`;
-//     });
-// }
-
-

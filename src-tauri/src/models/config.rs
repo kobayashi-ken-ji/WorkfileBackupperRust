@@ -11,8 +11,9 @@ pub struct Config {
     pub source_path: PathBuf,       // バックアップ元フォルダ
     pub destination_path: PathBuf,  // バックアップ先フォルダ
     pub extensions: Vec<String>,    // バックアップするファイルの種類 (拡張子)
-    pub is_shown: bool,             // アプリ起動時にウィンドウを表示する
     pub is_notify: bool,            // デスクトップ通知をする
+    pub is_shown: bool,             // アプリ起動時にウィンドウを表示する
+    pub auto_start: bool,           // アプリ起動時に自動的に開始する
 }
 
 // デフォルト値を定義
@@ -29,8 +30,9 @@ impl Default for Config {
                 String::from("tmp"),    // ファイル消失テスト
                 String::from("PpP"),    // 大文字小文字テスト
             ],
-            is_shown: true,
             is_notify: true,
+            is_shown: true,
+            auto_start: false,
         }
     }
 }
@@ -38,7 +40,8 @@ impl Default for Config {
 impl Config {
 
     /// 設定ファイルの保存先パスを取得
-    /// (例： ~/.config/workfile-backupper/config.json)
+    /// ※ Windows環境での値
+    /// "C:\\Users\\Conaca\\AppData\\Roaming\\com.conaca.workfile-backupper\\config.json"
     fn get_path(app_handle: &AppHandle) -> PathBuf {
         app_handle
             .path()
@@ -66,14 +69,23 @@ impl Config {
     }
 
 
-    /// ファイルから設定を読み込む (なければデフォルト値を返す)
-    pub fn load(app_handle: &AppHandle) -> Self {
-        let path = Self::get_path(app_handle);
+    /// ファイルから設定を読み込む (読み込めなければErr)
+    pub fn load(app_handle: &AppHandle) -> Result<Self, std::io::Error> {
 
+        let path = Self::get_path(app_handle);
+        
+        // ファイルを読込、JSON→Configへ変換
         fs::read_to_string(path)
             .and_then(|content| serde_json::from_str(&content).map_err(|e| e.into()))
-            .unwrap_or_else(|_| Self::default())    // 失敗時はデフォルト値
     }
+
+    // pub fn load(app_handle: &AppHandle) -> Self {
+    //     let path = Self::get_path(app_handle);
+
+    //     fs::read_to_string(path)
+    //         .and_then(|content| serde_json::from_str(&content).map_err(|e| e.into()))
+    //         .unwrap_or_else(|_| Self::default())    // 失敗時はデフォルト値
+    // }
 }
 
 //=============================================================================
@@ -89,8 +101,9 @@ mod tests {
         let config = Config {
             source_path: PathBuf::from(r"D:\一時作業ファイル"),
             destination_path: PathBuf::from(r"E:\old【一時作業】"),
-            is_shown: true,
             is_notify: true,
+            is_shown: true,
+            auto_start: false,
             extensions: [
                 "psd",
                 "sai2",
