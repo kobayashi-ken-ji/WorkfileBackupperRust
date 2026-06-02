@@ -8,54 +8,78 @@
 </head>
 
 <!-- 設定を読み込むまでは操作不能 -->
-<body inert>
+ <body>
+<!-- <body inert> -->
 
     <!-- ローディングオーバーレイ -->
+    <!--
     <div id="loading-overlay">
         <div class="spinner"></div>
         <p>設定を読込中...</p>
     </div>
+     -->
 
     <!-- メインコンテンツ -->
-    <h2>自動バックアップ設定</h2>
+    <h2>上書きファイルの自動バックアップ設定</h2>
 
-    <div class="margin-bottom">
-        <label for="source-path">バックアップ元パス (監視するフォルダ)</label>
-        <input type="text" id="source-path" value="読込中">
+    <div class="box-title">バックアップ設定</div>
+    <div class="box-body">
+        <div class="box-inner">
+            <label for="source-path">バックアップ元 (監視するフォルダ)</label>
+            <div class="folder-select-div">
+                <input type="text" id="source-path" class="folder-path" placeholder="指定されていません" readonly>
+                <button id="source-btn" class="folder-btn">選択</button>
+            </div>
+        </div>
+        <hr>
+        <div class="box-inner">
+
+            <label for="destination-path">バックアップ先</label>
+            <div class="folder-select-div">
+                <input type="text" id="destination-path" class="folder-path" placeholder="指定されていません" readonly>
+                <button id="destination-btn" class="folder-btn">選択</button>
+            </div>
+        </div>
+        <hr>
+        <div class="box-inner">
+            <label for="destination-path">バックアップする拡張子 (スペースまたはカンマ区切り)</label>
+            <input type="text" id="extensions" placeholder="例: txt jpg mp3">
+        </div>
     </div>
 
-    <div class="margin-bottom">
-        <label for="destination-path">バックアップ先パス</label>
-        <input type="text" id="destination-path" value="読込中">
+    <div class="box-title">通知設定</div>
+    <div class="box-body">
+        <div class="box-inner">
+            <label class="checkbox">
+                <input type="checkbox" id="is-notify" />
+                デスクトップ通知をする
+            </label>
+        </div>
     </div>
 
-    <div class="margin-bottom">
-        <label for="destination-path">バックアップする拡張子 (スペースまたはカンマ区切り)</label>
-        <input type="text" id="extensions" value="読込中">
+    <div class="box-title">アプリ起動時の設定</div>
+    <div class="box-body">
+        <div class="box-inner">
+            <label class="checkbox">
+                <input type="checkbox" id="is-shown" />
+                起動時にこの画面を開く
+            </label>
+        </div>
+        <hr>
+        <div class="box-inner">
+            <label class="checkbox">
+                <input type="checkbox" id="auto-start" />
+                起動時に自動で開始する
+            </label>
+        </div>
     </div>
 
-    <div class="margin-bottom">
-        <label>
-            <input type="checkbox" id="is-notify" />
-            デスクトップ通知をする
-        </label>
-        <label>
-            <input type="checkbox" id="is-shown" />
-            アプリ起動時にこの画面を開く
-        </label>
-        <label>
-            <input type="checkbox" id="auto-start" />
-            アプリ起動時に自動で開始する
-        </label>
+    <div class="center">
+        <button class="main" id="start-btn">開始</button>
+        <button class="main" id="stop-btn" disabled>停止</button>
     </div>
 
-    <div class="center margin-bottom">
-        <button id="start-btn" disabled>開始</button>
-        <button id="stop-btn" disabled>停止</button>
-    </div>
-
-    <div class="bg-dark">ログ</div>
-    <div id="log-box" class="log-box"></div>
-    
+    <div class="box-title">ログ</div>
+    <div id="log-box" class="box-body no-bottom-margin log-box"></div>
 </body>
 </html>

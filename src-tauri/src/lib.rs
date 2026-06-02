@@ -36,7 +36,8 @@ pub fn run() {
 
     tauri::Builder::default()
 
-        // プラグインの初期化
+    // プラグインの初期化
+        .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_notification::init())
 
         // 多重起動防止

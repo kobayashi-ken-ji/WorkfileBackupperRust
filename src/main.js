@@ -8,6 +8,9 @@ const { invoke } = window.__TAURI__.core;
 // Tauriのイベント用関数 listen
 const { listen } = window.__TAURI__.event;
 
+const { open } = window.__TAURI__.dialog;
+const { getCurrentWindow, LogicalSize } = window.__TAURI__.window;
+
 // 現在のウィンドウオブジェクトを取得
 const { getCurrentWebviewWindow } = window.__TAURI__.webviewWindow;
 const appWindow = getCurrentWebviewWindow();
@@ -17,9 +20,11 @@ const DOM = {
     // 設定の読込中のグレーアウト
     loadingOverlay  : document.getElementById("loading-overlay"),
 
-    // Config構造体と対応する <input>
+    // Config構造体と対応する <input> + <button>
     sourcePath      : document.getElementById("source-path"),
+    sourceBtn       : document.getElementById("source-btn"),
     destinationPath : document.getElementById("destination-path"),
+    destinationBtn  : document.getElementById("destination-btn"),
     extensions      : document.getElementById("extensions"),
     isNotify        : document.getElementById("is-notify"),
     isShown         : document.getElementById("is-shown"),
@@ -39,9 +44,13 @@ const DOM = {
 //=============================================================================
 
 (async () => {
+    resizeWindowToContent();
+
     // 各ボタンにイベントリスナーを設定
     await DOM.startBtn.addEventListener("click", onStartButton);
     await DOM.stopBtn.addEventListener("click", onStopButton);
+    await DOM.sourceBtn.addEventListener("click", ()=>onFolderSelectButton(DOM.sourcePath, DOM.sourceBtn));
+    await DOM.destinationBtn.addEventListener("click", ()=>onFolderSelectButton(DOM.destinationPath, DOM.destinationBtn));
 
     await initEventListener();
     loadConfig();
@@ -50,6 +59,42 @@ const DOM = {
 //=============================================================================
 // 関数
 //=============================================================================
+
+/** 画面サイズを自動調整する */
+async function resizeWindowToContent() {
+
+    // コンテンツ全体の高さを取得
+    const width  = document.documentElement.scrollWidth;
+    const height = document.documentElement.scrollHeight;
+
+    // 現在のウィンドウを取得し、サイズを適用
+    const window = getCurrentWindow();
+    await window.setSize(new LogicalSize(width, height));
+}
+
+
+/** フォルダ選択ボタンが押されたとき */
+async function onFolderSelectButton(pathInput, selectButton) {
+
+    console.log(pathInput);
+    console.log(selectButton);
+
+    try {
+        // フォルダ選択ダイアログを開く
+        const selected = await open({
+            directory: true,    // フォルダ選択モード
+            multiple: false,    // 複数選択は無効
+        });
+
+        // null以外 → 入力ボックスへ反映
+        if (selected)
+            pathInput.value = selected;
+
+    } catch(error) {
+        console.error("ダイアログの起動に失敗:", error);
+    }
+}
+
 
 /** 設定ファイルを読み込む */
 async function loadConfig() {
@@ -200,7 +245,6 @@ async function initEventListener() {
 
         // Rustからの送信されたデータを取り出す
         const dto = event.payload;
-        console.log(dto);
         const {level, title, body} = dto;
 
         // 現在時刻を文字列化 (HH:MM 形式)

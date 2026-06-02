@@ -3,12 +3,16 @@
   "identifier": "default",
   "description": "Capability for the main window",
   "windows": [
-    "main", "version-info"
+    "main",
+    "version-info"
   ],
   "permissions": [
     "core:default",
     "core:window:allow-hide",
+    "core:window:allow-set-size",
     "opener:default",
-    "notification:default"
+    "notification:default",
+    "dialog:default",
+    "dialog:allow-open"
   ]
 }

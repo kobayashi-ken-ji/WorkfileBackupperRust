@@ -57,7 +57,7 @@ impl Watcher {
             Ok(path) => path,
             Err(error) => {
                 eprintln!("{error}");
-                InvalidSourcePath(config.source_path.clone()).send(&tx);
+                InvalidSourcePath.send(&tx);
                 return Err(());
             }
         };
@@ -67,16 +67,22 @@ impl Watcher {
             Ok(path) => path,
             Err(error) => {
                 eprintln!("{error}");
-                InvalidDestinationPath(config.destination_path.clone()).send(&tx);
+                InvalidDestinationPath.send(&tx);
                 return Err(());
             }
         };
 
+        // バックアップ元とバックアップ先が同じ
+        if watch_path == destination_path {
+            PathConflict.send(&tx);
+            return Err(());
+        }
+        
         // バックアップ用インスタンスを生成
         let backupper = FileBackupper::new(&destination_path);
         if !backupper.is_valid() {
             // バックアップ先がフォルダではない
-            InvalidDestinationPath(destination_path).send(&tx);
+            InvalidDestinationPath.send(&tx);
             return Err(());
         }
 
@@ -168,9 +174,9 @@ impl Watcher {
         };
 
         // フォルダを監視対象に登録 (NonRecursive = サブフォルダを含まない)
-        if let Err(error) = debouncer.watch(watch_path.clone(), RecursiveMode::NonRecursive) {
+        if let Err(error) = debouncer.watch(watch_path, RecursiveMode::NonRecursive) {
             eprintln!("{error}");
-            DebounceStartFailed(watch_path).send(&tx_clone);
+            DebounceStartFailed.send(&tx_clone);
             return Err(());
         };
 

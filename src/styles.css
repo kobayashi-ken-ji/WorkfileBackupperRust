@@ -5,6 +5,15 @@
     --silent-color: #666666;
     --error-color: #d32f2f;
     --dark-color: #e7e7e7;
+    --input-text-height: 28px;
+    --button-bg: #007acc;
+    --button-hover-bg: #005999;
+    --font-weight-default: 500;   /* Noto Sans JP 細い対策、メイリオは500が無いため太くならずに済む */
+    --body-bg: #f9f9f9;
+    --body-bg: #f3f3f3;
+    --line-color: #ddd;
+    --border-default: 1px solid var(--line-color);
+    --shadow-default: 0px 1px 5px rgba(0, 0, 0, 0.1);
 }
 /* :root {
     --info-color: #39a33e;
@@ -14,40 +23,103 @@
 } */
 
 body {
-    font-family: sans-serif;
+    /* font-family: sans-serif; */
+    font-family: "Noto Sans JP", sans-serif;
+    margin: 0;
     padding: 20px;
-    background: #f9f9f9;
+    background: var(--body-bg);
     color: #333;
-    font-size: 90%;
+    font-size: 85%;
 }
 
-h2 {
+/* フォント設定を引き継がない要素にも反映させる */
+input, select, textarea, button {
+    font-family: inherit;
+}
+
+h2, h3 {
     margin-top: 0px;
 }
 
-.margin-bottom {
-    margin-bottom: 25px;
+/*===========================================================================*/
+/* box (関連する設定をまとめたウィンドウ) */
+/*===========================================================================*/
+
+/* 各設定の区切り線 */
+hr {
+    border: none;
+    border-top: var(--border-default);
+    /* margin: 16px auto; */
+    margin: 0px;
 }
+
+/* 設定の種類名 */
+.box-title {
+    /* background: var(--button-hover-bg); */
+    /* color: white; */
+    padding: 8px 0px;
+    font-weight: var(--font-weight-default);
+    /* font-weight: 500; */
+    font-size: 120%;
+    /* border-radius: 5px 5px 0 0; */
+    /* box-shadow: 0px 1px 5px rgba(0, 0, 0, 0.1); */
+}
+
+/* 設定を種類ごとにまとめるウィンドウ */
+.box-body {
+    margin-bottom: 16px;
+    background-color: white;
+    padding: 0;
+    border: var(--border-default);
+    border-radius: 7px;
+    box-shadow: var(--shadow-default);
+}
+
+/* hrを左右隙間なく使うためのマージン */
+.box-inner {
+    margin: 15px;
+}
+
+.no-bottom-margin {
+    margin-bottom: 0;
+}
+
+/*===========================================================================*/
 
 /* ログ上側 */
 .bg-dark {
     background-color: var(--dark-color);
     /* color: white; */
-    font-weight: bold;
+    font-weight: 500;
     padding: 5px 20px;
     border-radius: 3px 3px 0 0;
 }
 
-label, legend {
+label {
     display: block;
-    margin-bottom: 5px;
-    font-weight: bold;
+    margin-bottom: 4px;
+    font-weight: var(--font-weight-default);
+    /* font-size: 90%; */
+    /* font-size: 95%; */
+}
+
+label.checkbox {
+    /* font-size: 95%; */
+    margin-bottom: 8px;
+    font-weight: 500;
+    /* font-weight: bold; */
 }
 
 input {
     width: 100%;
     padding: 8px;
     box-sizing: border-box;
+    border: 1px solid rgb(207, 207, 207);
+    border-radius: 4px;
+}
+
+input[type="text"] {
+    height: 28px;
 }
 
 /* ボタン部分を改行させない */
@@ -57,9 +129,14 @@ input[type="radio"] {
     padding: 0px;
 }
 
+/*===========================================================================*/
+/* ボタン */
+/*===========================================================================*/
+
 button {
     padding: 10px 20px;
-    background: #007acc;
+    background: var(--button-bg);
+    font-weight: var(--font-weight-default);
     color: white;
     border: none;
     cursor: pointer;
@@ -67,17 +144,29 @@ button {
     margin: 5px;
 }
 
+
+/* 開始・終了ボタン */
+button.main {
+    border-radius: 4px;
+    box-shadow: 0px 2px 3px rgba(0, 0, 0, 0.15);
+}
+
 button:hover {
-    background: #005999;
+    background: var(--button-hover-bg);
 }
 
 /* 無効化中はグレーアウト */
 button:disabled {
-    background-color: #cccccc;
-    color: #444;
+    background-color: #d3d3d3;
+    color: #888888;
     cursor: not-allowed;    /* カーソルを禁止マークに */
-    opacity: 0.7;
+    /* opacity: 0.7; */
+    box-shadow: none;
 }
+
+
+
+/*===========================================================================*/
 
 #log {
     margin-top: 20px;
@@ -103,7 +192,7 @@ button:disabled {
     left: 0;
     width: 100vw;   /* Viewport Width = 画面全体*/
     height: 100vh;
-    background-color: rgba(0, 0, 0, 0.5); /* グレー濃度 */
+    background-color: rgba(0, 0, 0, 0.5);
     display: flex;
     flex-direction: column;
     justify-content: center;
@@ -134,11 +223,10 @@ button:disabled {
     height: 150px;
     overflow-y: auto;
     background: #ffffff;
-    border: 1px solid var(--dark-color);
     padding: 8px;
     font-size: 14px;
-    border-radius: 0 0 3px 3px;
-    /* box-shadow: 0 1px 0 0 rgba(0, 0, 0, 0.1); */
+    /* border: 1px solid var(--dark-color); */
+    /* border-radius: 0 0 3px 3px; */
 }
 
 /* ログ 横一列 (種類ごとに色分け) */
@@ -182,6 +270,48 @@ button:disabled {
     word-break: break-all;  /* 枠内で折り返す*/
 }
 
+/*===========================================================================*/
+/* フォルダ入力欄 + 参照ボタン */
+/*===========================================================================*/
 
 
+/* Flexboxで横並びにする */
+/* centerで上下中央 */
+/* gapで要素間の余白 */
+.folder-select-div {
+    display: flex;
+    align-items: center;
+    gap: 0px;
+    width: 100%;
+}
 
+/* 伸縮して余白を埋める */
+.folder-path {
+    flex: 1;
+    /* border: 1px solid var(--button-bg); */
+    border: none;
+    /* background: var(--body-bg); */
+
+
+    /* border-radius: 4px 0 0 4px; */
+    box-sizing: border-box;
+    height: var(--input-text-height);
+    padding-left: 20px;
+    color: #666;
+    /* background: #f9f9f9; */
+}
+
+/* 改行を防ぐ */
+.folder-btn {
+    /* border-radius: 0 4px 4px 0; */
+    border-radius: 4px;
+    box-sizing: border-box;
+    height: var(--input-text-height);
+    width: auto;
+    margin: 0;
+
+    /* ボタン内の文字の中央揃え */
+    display: flex;
+    justify-content: center;
+    align-items: center;
+}

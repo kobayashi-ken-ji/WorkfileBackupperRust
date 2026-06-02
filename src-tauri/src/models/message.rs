@@ -1,5 +1,5 @@
 use std::path::{Path, PathBuf};
-use std::sync::mpsc::{Sender};
+use std::sync::mpsc::Sender;
 
 use crate::models::eprint::ResutlErrPrint;
 
@@ -9,23 +9,29 @@ use crate::models::eprint::ResutlErrPrint;
 
 // 各関数の戻り値に実装するトレイト
 pub trait Notify {
+    const SEND_ERROR: &str = "メッセージ受信機がドロップされています";
 
     /// UI/ログへのデータ型に変換
     fn to_dto(&self) -> NotifyDTO;
 
     /// 自身のデータを送信
     fn send(&self, tx: &Sender<NotifyPackage>) {
-        const SEND_ERROR: &str = "メッセージ受信機がドロップされています";
         let package = NotifyPackage::Message(self.to_dto());
-        tx.send(package).eprint(SEND_ERROR);
+        tx.send(package).eprint(Self::SEND_ERROR);
+    }
+
+    /// デスクトップ通知設定の変更を送信
+    fn send_config_chenge(is_notify: bool, tx: &Sender<NotifyPackage>) {
+        let package = NotifyPackage::Config { is_notify };
+        tx.send(package).eprint(Self::SEND_ERROR);
     }
 }
 
 
 /// UI/ログへの送信機に渡す型
 pub enum NotifyPackage {
-    Message(NotifyDTO),          // 通常の通知データ
-    Config { is_notify: bool },  // デスクトップ通知のON/OFF切替えを指示
+    Message(NotifyDTO),         // 通常の通知データ
+    Config { is_notify: bool }, // デスクトップ通知のON/OFF切替えを指示
 }
 
 
@@ -33,21 +39,21 @@ pub enum NotifyPackage {
 #[derive(Debug, Clone, serde::Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct NotifyDTO {
-    pub level: NotifyLevel,   // ユーザーへの通知レベル
-    pub title: &'static str,  // デスクトップ通知のタイトル部分 (発生イベントの説明)
-    pub body: String,         // デスクトップ通知のボディ部分 (ファイル名など)
+    pub level: NotifyLevel,  // ユーザーへの通知レベル
+    pub title: &'static str, // デスクトップ通知のタイトル部分 (発生イベントの説明)
+    pub body: String,        // デスクトップ通知のボディ部分 (ファイル名など)
 }
 
 
 /// ユーザーへの通知レベル
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize)]
-#[serde(rename_all = "camelCase")]  // JSでは「info, error, silent」になる
+#[serde(rename_all = "camelCase")] // JSでは「info, error, silent」になる
 pub enum NotifyLevel {
-    Error,   // 赤文字: GUI表示 + デスクトップ通知
-    Info,    // 緑文字: GUI表示 + デスクトップ通知
-    Silent,  // 灰文字: GUI表示のみ (デスクトップ通知なし)
-    Debug,   // コンソール表示のみ (開発用)
-    // Warn,
+    Error,  // 赤文字: GUI表示 + デスクトップ通知
+    Info,   // 緑文字: GUI表示 + デスクトップ通知
+    Silent, // 灰文字: GUI表示のみ (デスクトップ通知なし)
+    Debug,  // コンソール表示のみ (開発用)
+            // Warn,
 }
 
 //=============================================================================
@@ -57,16 +63,15 @@ pub enum NotifyLevel {
 /// フォルダ監視中のイベント情報 (UI/ログへの送信用)
 #[derive(Debug, Clone, serde::Serialize)]
 pub enum WatchInfo {
-    ModificationDetected(PathBuf),  // ファイル変更の検出
-    UnspecifiedExtension(PathBuf),  // 指定外の拡張子のためスキップ
-    DebounceError,                  // DebounceEventResult のエラー
+    ModificationDetected(PathBuf), // ファイル変更の検出
+    UnspecifiedExtension(PathBuf), // 指定外の拡張子のためスキップ
+    DebounceError,                 // DebounceEventResult のエラー
 }
 
 impl Notify for WatchInfo {
-
     fn to_dto(&self) -> NotifyDTO {
-        use WatchInfo::*;
         use NotifyLevel::*;
+        use WatchInfo::*;
 
         let (level, title, body) = match self {
             ModificationDetected(path) => (Debug, "変更を検出", get_filename(path)),
@@ -78,37 +83,36 @@ impl Notify for WatchInfo {
     }
 }
 
-
 /// フォルダ監視の開始処理の結果 (UI/ログへの送信用)
 #[derive(Debug, Clone, serde::Serialize)]
 pub enum StartResult {
-    Success,                         // フォルダ監視の開始に成功
-    InvalidSourcePath(PathBuf),      // バックアップ元フォルダが無効
-    InvalidDestinationPath(PathBuf), // バックアップ先フォルダが無効
-    AlreadyRunning,                  // 既に監視が開始している
-    NewDebouncerFailed,              // デバウンサーの生成に失敗
-    DebounceStartFailed(PathBuf),    // デバウンサーが監視開始に失敗
+    Success,                    // フォルダ監視の開始に成功
+    InvalidSourcePath,          // バックアップ元フォルダが無効
+    InvalidDestinationPath,     // バックアップ先フォルダが無効
+    PathConflict,               // バックアップ元/先 が同じ
+    AlreadyRunning,             // 既に監視が開始している
+    NewDebouncerFailed,         // デバウンサーの生成に失敗
+    DebounceStartFailed,        // デバウンサーが監視開始に失敗
 }
 
 impl Notify for StartResult {
-
     fn to_dto(&self) -> NotifyDTO {
-        use StartResult::*;
         use NotifyLevel::*;
-    
+        use StartResult::*;
+
         let (level, title, body) = match self {
-            Success                      => (Info,  "バックアップを開始しました", "".into()),
-            InvalidSourcePath(path)      => (Error, "バックアップ元フォルダが無効", clean_path(path)),
-            InvalidDestinationPath(path) => (Error, "バックアップ先フォルダが無効", clean_path(path)),
-            AlreadyRunning               => (Info,  "既にフォルダ監視中", "".into()),
-            NewDebouncerFailed           => (Error, "フォルダの監視開始に失敗", "デバウンサーの生成に失敗".into()),
-            DebounceStartFailed(path)    => (Error, "フォルダの監視開始に失敗", clean_path(path)),
+            Success                => (Info,  "バックアップを開始しました", "".into()),
+            InvalidSourcePath      => (Error, "開始失敗", "バックアップ元フォルダが無効です".into()),
+            InvalidDestinationPath => (Error, "開始失敗", "バックアップ先フォルダが無効です".into()),
+            PathConflict           => (Error, "開始失敗", "バックアップ元とバックアップ先が同じです".into()),
+            AlreadyRunning         => (Info,  "既にフォルダ監視中", "".into()),
+            NewDebouncerFailed     => (Error, "開始失敗", "デバウンサーの生成に失敗しました".into()),
+            DebounceStartFailed    => (Error, "開始失敗", "デバウンサーの開始に失敗しました".into()),
         };
 
         NotifyDTO { level, title, body }
     }
 }
-
 
 /// フォルダ監視の停止処理の結果 (UI/ログへの送信用)
 #[derive(Debug, Clone, serde::Serialize)]
@@ -118,11 +122,10 @@ pub enum StopResult {
 }
 
 impl Notify for StopResult {
-
     fn to_dto(&self) -> NotifyDTO {
-        use StopResult::*;
         use NotifyLevel::*;
-    
+        use StopResult::*;
+
         let (level, title, body) = match self {
             Success        => (Info, "バックアップを停止しました", "".into()),
             AlreadyStopped => (Info, "既に停止済み", "".into()),
@@ -139,19 +142,18 @@ impl Notify for StopResult {
 /// ファイル書込終了待ちの結果 (UI/ログへの送信用)
 #[derive(Debug, Clone, serde::Serialize)]
 pub enum WaitResult {
-    Success,            // 書込終了を確認した
-    Locked(PathBuf),    // ファイルがロックされている
-    Missing(PathBuf),   // ファイルを見失った
+    Success,          // 書込終了を確認した
+    Locked(PathBuf),  // ファイルがロックされている
+    Missing(PathBuf), // ファイルを見失った
 }
 
 impl Notify for WaitResult {
-
     fn to_dto(&self) -> NotifyDTO {
-        use WaitResult::*;
         use NotifyLevel::*;
-    
+        use WaitResult::*;
+
         let (level, title, body) = match self {
-            Success       => (Debug, "ファイルの書込み終了を検知", "".into()),  // UIには送信されない想定
+            Success       => (Debug, "ファイルの書込み終了を検知", "".into()), // UIには送信されない想定
             Locked(path)  => (Error, "ファイルがロック中", get_filename(path)),
             Missing(path) => (Error, "ファイル消失または読取権限なし", get_filename(path)),
         };
@@ -167,27 +169,26 @@ impl Notify for WaitResult {
 // バックアップ処理の結果 (UI/ログへの送信用)
 #[derive(Debug, Clone, serde::Serialize)]
 pub enum BackupResult {
-    Copied          (PathBuf),
-    AlreadyExists   (PathBuf),
-    InvalidFileName (PathBuf),
-    MetadataFailed  (PathBuf),
-    ModifiedFailed  (PathBuf),
-    CopyFailed      (PathBuf),
+    Copied(PathBuf),
+    AlreadyExists(PathBuf),
+    InvalidFileName(PathBuf),
+    MetadataFailed(PathBuf),
+    ModifiedFailed(PathBuf),
+    CopyFailed(PathBuf),
 }
 
 impl Notify for BackupResult {
-    
     fn to_dto(&self) -> NotifyDTO {
         use BackupResult::*;
         use NotifyLevel::*;
 
         let (level, title, body) = match self {
-            Copied          (path) => (Info, "バックアップ", get_filename(path)),
-            AlreadyExists   (path) => (Silent, "既にバックアップ済み", get_filename(path)),
-            InvalidFileName (path) => (Error, "ファイル名の取得に失敗", get_filename(path)),
-            MetadataFailed  (path) => (Error, "ファイル情報の取得に失敗", get_filename(path)),
-            ModifiedFailed  (path) => (Error, "最終更新時の取得に失敗", get_filename(path)),
-            CopyFailed      (path) => (Error, "コピーに失敗", get_filename(path)),
+            Copied         (path) => (Info, "バックアップ", get_filename(path)),
+            AlreadyExists  (path) => (Silent, "既にバックアップ済み", get_filename(path)),
+            InvalidFileName(path) => (Error, "ファイル名の取得に失敗", get_filename(path)),
+            MetadataFailed (path) => (Error, "ファイル情報の取得に失敗", get_filename(path)),
+            ModifiedFailed (path) => (Error, "最終更新時の取得に失敗", get_filename(path)),
+            CopyFailed     (path) => (Error, "コピー失敗", get_filename(path)),
         };
 
         NotifyDTO { level, title, body }
@@ -201,8 +202,7 @@ impl Notify for BackupResult {
 // ※ フォルダに対して使用
 /// 拡張接頭辞を外す (UI表示用)
 /// PathBuf::canonicalize() すると「\\?\」が付与されるため、表示用に削除する
-fn clean_path(path: &Path) -> String {
-
+fn _clean_path(path: &Path) -> String {
     // PathBuf → String 変換
     // ※UTF-8として不正な部分は「」に変換する
     let path_str = path.to_string_lossy();
@@ -210,7 +210,7 @@ fn clean_path(path: &Path) -> String {
     // Windows環境のみ拡張接頭辞を外す
     #[cfg(windows)]
     if path_str.starts_with(r"\\?\") {
-        return path_str[4..].to_string()
+        return path_str[4..].to_string();
     }
 
     path_str.into_owned()
@@ -225,11 +225,8 @@ fn get_filename(path: &Path) -> String {
         .to_string()
 }
 
-
 // ※ 現在不使用
 /// 相対パス名のみ抽出 (エラー時はそのまま返す)
 fn _get_relative_path(path: &Path, base: &Path) -> PathBuf {
-    path.strip_prefix(base)
-        .unwrap_or(path)
-        .to_path_buf()
+    path.strip_prefix(base).unwrap_or(path).to_path_buf()
 }
