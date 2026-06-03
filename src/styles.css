@@ -5,28 +5,22 @@
     --silent-color: #666666;
     --error-color: #d32f2f;
     --dark-color: #e7e7e7;
-    --input-text-height: 28px;
+    --folder-select-height: 28px;
     --button-bg: #007acc;
     --button-hover-bg: #005999;
     --font-weight-default: 500;   /* Noto Sans JP 細い対策、メイリオは500が無いため太くならずに済む */
-    --body-bg: #f9f9f9;
-    --body-bg: #f3f3f3;
+    --body-bg: #efefef;
+    /* --body-bg: #f3f3f3; */
     --line-color: #ddd;
     --border-default: 1px solid var(--line-color);
     --shadow-default: 0px 1px 5px rgba(0, 0, 0, 0.1);
+    --side-margin: 0px 20px;
+    --main-btn-width: 120px;
 }
-/* :root {
-    --info-color: #39a33e;
-    --silent-color: #7c7c7c;
-    --error-color: #d32f2f;
-    --dark-color: #244475;
-} */
 
 body {
-    /* font-family: sans-serif; */
     font-family: "Noto Sans JP", sans-serif;
     margin: 0;
-    padding: 20px;
     background: var(--body-bg);
     color: #333;
     font-size: 85%;
@@ -41,6 +35,12 @@ h2, h3 {
     margin-top: 0px;
 }
 
+
+/* 不可視 (空白になる) */
+.invisible {
+    visibility: hidden;
+}
+
 /*===========================================================================*/
 /* box (関連する設定をまとめたウィンドウ) */
 /*===========================================================================*/
@@ -49,24 +49,26 @@ h2, h3 {
 hr {
     border: none;
     border-top: var(--border-default);
-    /* margin: 16px auto; */
     margin: 0px;
+}
+
+/* hrを左右隙間なく使うためのマージン */
+.box-inner {
+    margin: 15px;
 }
 
 /* 設定の種類名 */
 .box-title {
-    /* background: var(--button-hover-bg); */
-    /* color: white; */
+    margin: var(--side-margin);
     padding: 8px 0px;
     font-weight: var(--font-weight-default);
     /* font-weight: 500; */
     font-size: 120%;
-    /* border-radius: 5px 5px 0 0; */
-    /* box-shadow: 0px 1px 5px rgba(0, 0, 0, 0.1); */
 }
 
 /* 設定を種類ごとにまとめるウィンドウ */
 .box-body {
+    margin: var(--side-margin);
     margin-bottom: 16px;
     background-color: white;
     padding: 0;
@@ -75,58 +77,71 @@ hr {
     box-shadow: var(--shadow-default);
 }
 
-/* hrを左右隙間なく使うためのマージン */
-.box-inner {
-    margin: 15px;
-}
-
-.no-bottom-margin {
-    margin-bottom: 0;
-}
-
 /*===========================================================================*/
-
-/* ログ上側 */
-.bg-dark {
-    background-color: var(--dark-color);
-    /* color: white; */
-    font-weight: 500;
-    padding: 5px 20px;
-    border-radius: 3px 3px 0 0;
-}
+/* ラベル・入力UI */
+/*===========================================================================*/
 
 label {
     display: block;
-    margin-bottom: 4px;
     font-weight: var(--font-weight-default);
-    /* font-size: 90%; */
-    /* font-size: 95%; */
 }
 
-label.checkbox {
-    /* font-size: 95%; */
-    margin-bottom: 8px;
-    font-weight: 500;
-    /* font-weight: bold; */
+label.bottom-margin {
+    margin-bottom: 6px;
 }
 
-input {
-    width: 100%;
-    padding: 8px;
+select, input {
+    height: 28px;
+    padding: 0px 8px;
     box-sizing: border-box;
     border: 1px solid rgb(207, 207, 207);
     border-radius: 4px;
 }
 
-input[type="text"] {
-    height: 28px;
+input {
+    width: 100%;
 }
+
+/* input[type="text"] {} */
 
 /* ボタン部分を改行させない */
 input[type="checkbox"],
 input[type="radio"] {
+    height: auto;
     width: auto;
     padding: 0px;
+}
+
+/* プルダウン、入力ボックス 間のマージン */
+/* 
+select + input[type="text"] {
+    margin-top: 5px;
+}
+ */
+
+/*===========================================================================*/
+/* 「バックアップするファイル」項目 */
+/*===========================================================================*/
+
+/* 横一列にするdiv用 */
+.file-type-div {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    width: 100%;
+    margin-bottom: 5px;
+}
+
+/* 直下セレクタで指定 */
+/* プルダウン部分 */
+.file-type-div > select {
+    width: 200px;
+}
+
+/* プルダウン右側の説明欄 */
+.file-type-div > div {
+    flex: 1;
+    color: #888;
 }
 
 /*===========================================================================*/
@@ -140,13 +155,13 @@ button {
     color: white;
     border: none;
     cursor: pointer;
-    width: 120px;
     margin: 5px;
 }
 
 
 /* 開始・終了ボタン */
 button.main {
+    width: var(--main-btn-width);
     border-radius: 4px;
     box-shadow: 0px 2px 3px rgba(0, 0, 0, 0.15);
 }
@@ -164,20 +179,18 @@ button:disabled {
     box-shadow: none;
 }
 
-
+/* メインボタンの下の補足テキスト */
+.save-text {
+    margin: 0px 5px;
+    width: var(--main-btn-width);
+    text-align: center;
+    font-size: 90%;
+    color: #999;
+}
 
 /*===========================================================================*/
-
-#log {
-    margin-top: 20px;
-    font-weight: bold;
-    color: green;
-}
-
-.extensions {
-    border: none;
-    padding: 0px;
-}
+/* 読込中画面 */
+/*===========================================================================*/
 
 /* 水平方向の中央揃え */
 .center {
@@ -217,8 +230,11 @@ button:disabled {
     to { transform: rotate(360deg); }
 }
 
+/*===========================================================================*/
+/* ログ */
+/*===========================================================================*/
 
-/* ログ下側 */
+/* ログウィンドウ */
 .log-box {
     height: 150px;
     overflow-y: auto;
@@ -237,7 +253,6 @@ button:disabled {
 .log-item.log-info   { color: var(--info-color); }      /* 成功：緑*/
 .log-item.log-silent { color: var(--silent-color); }    /* 軽度の情報：灰 */
 .log-item.log-error  { color: var(--error-color); }     /* エラー：赤*/
-
 
 /* ログ時刻 */
 .log-time {
@@ -274,14 +289,13 @@ button:disabled {
 /* フォルダ入力欄 + 参照ボタン */
 /*===========================================================================*/
 
-
 /* Flexboxで横並びにする */
 /* centerで上下中央 */
 /* gapで要素間の余白 */
 .folder-select-div {
     display: flex;
     align-items: center;
-    gap: 0px;
+    gap: 4px;
     width: 100%;
 }
 
@@ -289,16 +303,12 @@ button:disabled {
 .folder-path {
     flex: 1;
     /* border: 1px solid var(--button-bg); */
-    border: none;
-    /* background: var(--body-bg); */
-
-
     /* border-radius: 4px 0 0 4px; */
+    border: none;
     box-sizing: border-box;
-    height: var(--input-text-height);
+    height: var(--folder-select-height);
     padding-left: 20px;
     color: #666;
-    /* background: #f9f9f9; */
 }
 
 /* 改行を防ぐ */
@@ -306,7 +316,7 @@ button:disabled {
     /* border-radius: 0 4px 4px 0; */
     border-radius: 4px;
     box-sizing: border-box;
-    height: var(--input-text-height);
+    height: var(--folder-select-height);
     width: auto;
     margin: 0;
 
@@ -315,3 +325,59 @@ button:disabled {
     justify-content: center;
     align-items: center;
 }
+
+/*===========================================================================*/
+/* アプリ名 / 説明文 */
+/*===========================================================================*/
+
+/* ヘッダ全体 */
+.hedder-div {
+/*     
+    background-color: var(--button-hover-bg);
+    background-color: rgb(55, 71, 124);
+    background-color: rgb(55, 54, 107);
+    background-color: rgb(48, 48, 66);
+    background-color: rgb(62, 62, 90);
+ */
+    background-color: rgb(183, 183, 189);
+    color: white;
+
+    /* background-color: white; */
+
+
+    padding: 10px 20px;
+    margin-bottom: 10px;
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    box-sizing: border-box;
+    width: 100%;
+    box-shadow: var(--shadow-default);
+}
+
+/* 左側：アプリ名 */
+.hedder-app-name {
+    font-size: 160%;
+    font-weight: 400;
+}
+
+/* 右側：説明文 */
+.hedder-description {
+    flex: 1;
+    font-size: 90%;
+    font-weight: 400;
+    /* border: none; */
+
+    /* box-sizing: border-box; */
+    /* height: var(--folder-select-height); */
+    /* padding-left: 20px; */
+    /* color: #666; */
+    /* background: #f9f9f9; */
+}
+
+/*===========================================================================*/
+/* 
+.non-bottom-margin {
+    margin-bottom: 0;
+}
+ */

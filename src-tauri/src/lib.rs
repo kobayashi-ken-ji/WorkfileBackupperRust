@@ -14,7 +14,7 @@ use tauri::tray::TrayIconBuilder;
 
 use crate::models::state::MessageSender;
 use crate::models::eprint::ResutlErrPrint;
-use crate::models::message::{NotifyLevel, NotifyPackage};
+use crate::models::notify::{NotifyLevel, NotifyPackage};
 use crate::services::watch::Watcher;
 
 //=============================================================================
@@ -36,7 +36,7 @@ pub fn run() {
 
     tauri::Builder::default()
 
-    // プラグインの初期化
+        // プラグインの初期化
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_notification::init())
 
@@ -61,7 +61,7 @@ pub fn run() {
 
             // 右クリックメニューの作成
             let version = MenuItem::with_id(app, "version", "バージョン情報", true, None::<&str>)?;
-            let show  = MenuItem::with_id(app, "show", "設定画面を開く", true, None::<&str>)?;
+            let show  = MenuItem::with_id(app, "show", "設定 / ログ", true, None::<&str>)?;
             let quit  = MenuItem::with_id(app, "quit", "終了", true, None::<&str>)?;
             let start = MenuItem::with_id(app, "start", "開始", true, None::<&str>)?;
             let stop  = MenuItem::with_id(app, "stop", "停止", true, None::<&str>)?;

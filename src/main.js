@@ -20,11 +20,13 @@ const DOM = {
     // 設定の読込中のグレーアウト
     loadingOverlay  : document.getElementById("loading-overlay"),
 
-    // Config構造体と対応する <input> + <button>
+    // 設定入力部
     sourcePath      : document.getElementById("source-path"),
     sourceBtn       : document.getElementById("source-btn"),
     destinationPath : document.getElementById("destination-path"),
     destinationBtn  : document.getElementById("destination-btn"),
+    fileType        : document.getElementById("file-type"),
+    fileTypeTip     : document.getElementById("file-type-tip"),
     extensions      : document.getElementById("extensions"),
     isNotify        : document.getElementById("is-notify"),
     isShown         : document.getElementById("is-shown"),
@@ -34,8 +36,7 @@ const DOM = {
     startBtn        : document.getElementById("start-btn"),
     stopBtn         : document.getElementById("stop-btn"),
 
-    // 状態/ログを表示
-    // log             : document.getElementById("log"),
+    // ログ表示
     logBox          : document.getElementById("log-box"),
 };
 
@@ -47,11 +48,11 @@ const DOM = {
     resizeWindowToContent();
 
     // 各ボタンにイベントリスナーを設定
-    await DOM.startBtn.addEventListener("click", onStartButton);
-    await DOM.stopBtn.addEventListener("click", onStopButton);
-    await DOM.sourceBtn.addEventListener("click", ()=>onFolderSelectButton(DOM.sourcePath, DOM.sourceBtn));
-    await DOM.destinationBtn.addEventListener("click", ()=>onFolderSelectButton(DOM.destinationPath, DOM.destinationBtn));
-
+    DOM.startBtn.addEventListener("click", onStartButton);
+    DOM.stopBtn.addEventListener("click", onStopButton);
+    DOM.sourceBtn.addEventListener("click", ()=>onFolderSelectButton(DOM.sourcePath, DOM.sourceBtn));
+    DOM.destinationBtn.addEventListener("click", ()=>onFolderSelectButton(DOM.destinationPath, DOM.destinationBtn));
+    DOM.fileType.addEventListener("change", onChangeFileType);
     await initEventListener();
     loadConfig();
 })();
@@ -70,6 +71,25 @@ async function resizeWindowToContent() {
     // 現在のウィンドウを取得し、サイズを適用
     const window = getCurrentWindow();
     await window.setSize(new LogicalSize(width, height));
+}
+
+
+/** 拡張子入力の可視/不可視を切替え */
+async function onChangeFileType() {
+    const ByExtensions = (DOM.fileType.value == "by-extensions");
+
+    // プルダウン部分
+    (ByExtensions)
+        ? DOM.extensions.classList.remove("invisible")
+        : DOM.extensions.classList.add("invisible");
+
+    // ヒント部分
+    (ByExtensions)
+        ? DOM.fileTypeTip.classList.remove("invisible")
+        : DOM.fileTypeTip.classList.add("invisible");
+
+    // DOM.extensions.disabled = !ByExtensions;
+    // DOM.extensions.hidden = !ByExtensions;
 }
 
 
@@ -98,7 +118,7 @@ async function onFolderSelectButton(pathInput, selectButton) {
 
 /** 設定ファイルを読み込む */
 async function loadConfig() {
-    // console.log(invoke);
+
     // Rust側関数を実行
     let config = await invoke("get_config");
 
@@ -110,14 +130,23 @@ async function loadConfig() {
     document.body.inert = false;
     DOM.startBtn.disabled = false;
 
+    // config真偽値 → select.valueの文字列に変換
+    const fileType = (config.allFilesEnabled)
+        ? "all-files-enabled"
+        : "by-extensions";
+
     // HTMLへ値を反映
     // config内はキャメルケース化済み
-    DOM.sourcePath.value      = config.sourcePath;
-    DOM.destinationPath.value = config.destinationPath;
-    DOM.extensions.value      = config.extensions.join(" "); // 配列→文字列
-    DOM.isNotify.checked      = config.isNotify;
-    DOM.isShown.checked       = config.isShown;
-    DOM.autoStart.checked     = config.autoStart;
+    DOM.sourcePath.value        = config.sourcePath;
+    DOM.destinationPath.value   = config.destinationPath;
+    DOM.fileType.value          = fileType;
+    DOM.extensions.value        = config.extensions.join(" "); // 配列→文字列
+    DOM.isNotify.checked        = config.isNotify;
+    DOM.isShown.checked         = config.isShown;
+    DOM.autoStart.checked       = config.autoStart;
+
+    // 有効/無効を反映
+    onChangeFileType();
 
     // 自動開始設定の処理
     if (config.autoStart) onStartButton();
@@ -130,6 +159,9 @@ async function onStartButton() {
     // 処理開始の表示
     // DOM.log.innerText = "開始処理中...";
     DOM.startBtn.disabled = true;
+    
+    // プルダウンの値を取得
+    const allFilesEnabled = (DOM.fileType.value == "all-files-enabled");
 
     // 拡張子を取得し、文字列→配列へ変換
     const extensionsArray = DOM.extensions.value
@@ -141,6 +173,7 @@ async function onStartButton() {
     const config = {
         sourcePath      : DOM.sourcePath.value,
         destinationPath : DOM.destinationPath.value,
+        allFilesEnabled : allFilesEnabled,
         extensions      : extensionsArray,
         isNotify        : DOM.isNotify.checked,
         isShown         : DOM.isShown.checked,

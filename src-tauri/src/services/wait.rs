@@ -3,7 +3,7 @@ use std::path::{Path};
 use std::time::{Duration, SystemTime};
 use tokio::time::sleep;
 
-use crate::models::message::WaitResult;
+use crate::models::notify::WaitResult;
 
 
 /// 指定ファイルの書込終了まで待機する

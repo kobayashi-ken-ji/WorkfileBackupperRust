@@ -1,4 +1,4 @@
 pub mod state;
 pub mod config;
-pub mod message;
+pub mod notify;
 pub mod eprint;

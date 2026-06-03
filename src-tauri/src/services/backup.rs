@@ -1,7 +1,7 @@
 use std::fs;
 use std::path::{PathBuf, Path};
 use chrono::{DateTime, Local};
-use crate::models::message::BackupResult;
+use crate::models::notify::BackupResult;
 
 //=============================================================================
 // バックアップ処理
@@ -95,7 +95,7 @@ impl FileBackupper {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::models::message::{Notify};
+    use crate::models::notify::{Notify};
 
     #[test]
     fn one_result() {

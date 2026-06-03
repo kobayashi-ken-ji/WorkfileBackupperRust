@@ -7,7 +7,7 @@ use notify_debouncer_full::notify::{RecommendedWatcher};
 use std::convert::From;
 
 use crate::models::config::Config;
-use crate::models::message::{
+use crate::models::notify::{
     Notify, NotifyPackage, StartResult, StopResult, WaitResult, WatchInfo
 };
 
@@ -48,7 +48,8 @@ impl Watcher {
 
         use StartResult::*;
 
-        // バックアップ対象にする拡張子のリスト
+        // バックアップの対象 (全てのファイル or 指定された拡張子リスト)
+        let all_files_enabled = config.all_files_enabled;
         let extensions = Extensions::from(config.extensions.as_slice());
 
         // 監視先フォルダ
@@ -81,6 +82,7 @@ impl Watcher {
         // バックアップ用インスタンスを生成
         let backupper = FileBackupper::new(&destination_path);
         if !backupper.is_valid() {
+
             // バックアップ先がフォルダではない
             InvalidDestinationPath.send(&tx);
             return Err(());
@@ -124,8 +126,14 @@ impl Watcher {
                         // 検出したファイル全てに処理
                         for path in debounced_event.event.paths {
 
+                            // 全ファイルがバックアップ対象の場合
+                            // ファイルかどうかのみチェック
+                            if all_files_enabled {
+                                if !path.is_file() { continue; }
+                            }
+
                             // 対象拡張子かをチェック
-                            if !extensions.contains(&path) {
+                            else if !extensions.contains(&path) {
                                 WatchInfo::UnspecifiedExtension(path).send(&tx);
                                 continue;
                             }

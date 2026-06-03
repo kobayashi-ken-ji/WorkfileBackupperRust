@@ -19,12 +19,6 @@ pub trait Notify {
         let package = NotifyPackage::Message(self.to_dto());
         tx.send(package).eprint(Self::SEND_ERROR);
     }
-
-    /// デスクトップ通知設定の変更を送信
-    fn send_config_chenge(is_notify: bool, tx: &Sender<NotifyPackage>) {
-        let package = NotifyPackage::Config { is_notify };
-        tx.send(package).eprint(Self::SEND_ERROR);
-    }
 }
 
 

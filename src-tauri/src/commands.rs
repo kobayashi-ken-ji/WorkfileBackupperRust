@@ -3,7 +3,7 @@ use tauri::{AppHandle, Window, State};
 use crate::MessageSender;
 use crate::models::config::Config;
 use crate::models::eprint::ResutlErrPrint;
-use crate::models::message::{Notify, NotifyPackage};
+use crate::models::notify::{Notify, NotifyPackage};
 use crate::services::{watch::Watcher};
 
 const SEND_ERROR: &str = "メッセージ受信機がドロップされています";
