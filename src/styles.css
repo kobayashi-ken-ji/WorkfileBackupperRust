@@ -18,6 +18,15 @@
     --main-btn-width: 120px;
 }
 
+/* 
+    hidden を最優先する
+    hidden (= display: none) はCSSファイルより先に定義されているため、
+    後から定義した flex などが優先されてしまう。
+ */
+[hidden] {
+    display: none !important;
+}
+
 body {
     font-family: "Noto Sans JP", sans-serif;
     margin: 0;
@@ -42,7 +51,7 @@ h2, h3 {
 }
 
 /*===========================================================================*/
-/* box (関連する設定をまとめたウィンドウ) */
+/* box (関連設定をまとめるウィンドウ) */
 /*===========================================================================*/
 
 /* 各設定の区切り線 */
@@ -54,7 +63,7 @@ hr {
 
 /* hrを左右隙間なく使うためのマージン */
 .box-inner {
-    margin: 15px;
+    margin: 13px;   /* ウィンドウ内側の余白 */
 }
 
 /* 設定の種類名 */
@@ -69,7 +78,7 @@ hr {
 /* 設定を種類ごとにまとめるウィンドウ */
 .box-body {
     margin: var(--side-margin);
-    margin-bottom: 16px;
+    margin-bottom: 14px;        /* ウィンドウ間の余白 */
     background-color: white;
     padding: 0;
     border: var(--border-default);
@@ -112,13 +121,6 @@ input[type="radio"] {
     padding: 0px;
 }
 
-/* プルダウン、入力ボックス 間のマージン */
-/* 
-select + input[type="text"] {
-    margin-top: 5px;
-}
- */
-
 /*===========================================================================*/
 /* 「バックアップするファイル」項目 */
 /*===========================================================================*/
@@ -142,6 +144,31 @@ select + input[type="text"] {
 .file-type-div > div {
     flex: 1;
     color: #888;
+}
+
+/*===========================================================================*/
+/* 「ファイル未保存の通知」項目 */
+/*===========================================================================*/
+
+/* 横一列にするdiv用 */
+.notify-interval-div {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    width: 100%;
+    margin-top: 5px;
+    padding-left: 25px;
+    box-sizing: border-box;
+}
+
+/* 時間入力欄 */
+.notify-interval-div > input[type="number"] {
+    width: 70px;
+}
+
+/* 「分間 保存されたファイルがなければ通知」の部分 */
+.notify-interval-div > div {
+    flex: 1;
 }
 
 /*===========================================================================*/

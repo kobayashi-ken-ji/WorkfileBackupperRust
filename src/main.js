@@ -20,7 +20,7 @@ const DOM = {
     // 設定の読込中のグレーアウト
     loadingOverlay  : document.getElementById("loading-overlay"),
 
-    // 設定入力部
+    // バックアップ設定
     sourcePath      : document.getElementById("source-path"),
     sourceBtn       : document.getElementById("source-btn"),
     destinationPath : document.getElementById("destination-path"),
@@ -28,16 +28,23 @@ const DOM = {
     fileType        : document.getElementById("file-type"),
     fileTypeTip     : document.getElementById("file-type-tip"),
     extensions      : document.getElementById("extensions"),
-    isNotify        : document.getElementById("is-notify"),
-    isShown         : document.getElementById("is-shown"),
-    autoStart       : document.getElementById("auto-start"),
+
+    // デスクトップ通知の設定
+    isNotify          : document.getElementById("is-notify"),
+    isNotifyUnsaved   : document.getElementById("is-notify-unsaved"),
+    notifyInterval    : document.getElementById("notify-interval"),
+    notifyIntervalDiv : document.getElementById("notify-interval-div"),
+
+    // アプリ起動時の設定
+    isShown   : document.getElementById("is-shown"),
+    autoStart : document.getElementById("auto-start"),
 
     // 操作ボタン
-    startBtn        : document.getElementById("start-btn"),
-    stopBtn         : document.getElementById("stop-btn"),
+    startBtn  : document.getElementById("start-btn"),
+    stopBtn   : document.getElementById("stop-btn"),
 
     // ログ表示
-    logBox          : document.getElementById("log-box"),
+    logBox    : document.getElementById("log-box"),
 };
 
 //=============================================================================
@@ -52,7 +59,8 @@ const DOM = {
     DOM.stopBtn.addEventListener("click", onStopButton);
     DOM.sourceBtn.addEventListener("click", ()=>onFolderSelectButton(DOM.sourcePath, DOM.sourceBtn));
     DOM.destinationBtn.addEventListener("click", ()=>onFolderSelectButton(DOM.destinationPath, DOM.destinationBtn));
-    DOM.fileType.addEventListener("change", onChangeFileType);
+    DOM.fileType.addEventListener("change", onFileType);
+    DOM.isNotifyUnsaved.addEventListener("change", onIsNotifyUnsaved);
     await initEventListener();
     loadConfig();
 })();
@@ -75,21 +83,35 @@ async function resizeWindowToContent() {
 
 
 /** 拡張子入力の可視/不可視を切替え */
-async function onChangeFileType() {
+async function onFileType() {
     const ByExtensions = (DOM.fileType.value == "by-extensions");
 
-    // プルダウン部分
-    (ByExtensions)
-        ? DOM.extensions.classList.remove("invisible")
-        : DOM.extensions.classList.add("invisible");
+    // // プルダウン部分
+    // (ByExtensions)
+    //     ? DOM.extensions.classList.remove("invisible")
+    //     : DOM.extensions.classList.add("invisible");
 
-    // ヒント部分
-    (ByExtensions)
-        ? DOM.fileTypeTip.classList.remove("invisible")
-        : DOM.fileTypeTip.classList.add("invisible");
+    // // ヒント部分
+    // (ByExtensions)
+    //     ? DOM.fileTypeTip.classList.remove("invisible")
+    //     : DOM.fileTypeTip.classList.add("invisible");
 
     // DOM.extensions.disabled = !ByExtensions;
-    // DOM.extensions.hidden = !ByExtensions;
+    DOM.extensions.hidden = !ByExtensions;
+    DOM.fileTypeTip.hidden = !ByExtensions;
+
+}
+
+
+/** 「ファイル未保存の通知」の可視/不可視を切替え */
+async function onIsNotifyUnsaved() {
+
+    // 時間指定部分を切替え
+    // (DOM.isNotifyUnsaved.checked)
+    //     ? DOM.notifyIntervalDiv.classList.remove("invisible")
+    //     : DOM.notifyIntervalDiv.classList.add("invisible");
+
+    DOM.notifyIntervalDiv.hidden = !DOM.isNotifyUnsaved.checked;
 }
 
 
@@ -142,11 +164,14 @@ async function loadConfig() {
     DOM.fileType.value          = fileType;
     DOM.extensions.value        = config.extensions.join(" "); // 配列→文字列
     DOM.isNotify.checked        = config.isNotify;
+    DOM.isNotifyUnsaved.checked = config.isNotifyUnsaved;
+    DOM.notifyInterval.value    = config.notifyInterval;
     DOM.isShown.checked         = config.isShown;
     DOM.autoStart.checked       = config.autoStart;
 
-    // 有効/無効を反映
-    onChangeFileType();
+    // 表示/非表示を反映
+    onFileType();
+    onIsNotifyUnsaved();
 
     // 自動開始設定の処理
     if (config.autoStart) onStartButton();
@@ -169,6 +194,10 @@ async function onStartButton() {
         .map(ext => ext.trim())         // 前後の空白を削除
         .filter(ext => ext.length > 0); // 空文字は除外
 
+    // 未保存の通知間隔
+    // 文字列 → 整数値 → 正数値 (NoN や 0 はデフォルト値へ)
+    const notifyInterval = Math.abs(parseInt(DOM.notifyInterval.value) || 60);
+
     // HTMLの値を取得、Config構造体に合わせて格納
     const config = {
         sourcePath      : DOM.sourcePath.value,
@@ -176,6 +205,8 @@ async function onStartButton() {
         allFilesEnabled : allFilesEnabled,
         extensions      : extensionsArray,
         isNotify        : DOM.isNotify.checked,
+        isNotifyUnsaved : DOM.isNotifyUnsaved.checked,
+        notifyInterval  : notifyInterval,
         isShown         : DOM.isShown.checked,
         autoStart       : DOM.autoStart.checked,
     };

@@ -8,11 +8,19 @@ use tauri::Manager;
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]  // JSONとして渡すため、Serializeを付与
 #[serde(rename_all = "camelCase")]  // シリアライズ時、JSに合わせてキャメルケース化
 pub struct Config {
+
+    // バックアップ設定
     pub source_path: PathBuf,       // バックアップ元フォルダ
     pub destination_path: PathBuf,  // バックアップ先フォルダ
     pub all_files_enabled: bool,    // 全てのファイルをバックアップする
     pub extensions: Vec<String>,    // バックアップするファイルの種類 (拡張子)
+
+    // デスクトップ通知の設定
     pub is_notify: bool,            // デスクトップ通知をする
+    pub is_notify_unsaved: bool,    // ファイル未保存時間を通知
+    pub notify_interval: u64,       // 未保存時間の通知間隔 (分)
+
+    // アプリ起動時の設定
     pub is_shown: bool,             // アプリ起動時にウィンドウを表示する
     pub auto_start: bool,           // アプリ起動時に自動的に開始する
 }
@@ -33,6 +41,8 @@ impl Default for Config {
                 String::from("PpP"),    // 大文字小文字テスト
             ],
             is_notify: true,
+            is_notify_unsaved: false,
+            notify_interval: 30,
             is_shown: true,
             auto_start: false,
         }
@@ -104,6 +114,8 @@ mod tests {
             source_path: PathBuf::from(r"D:\一時作業ファイル"),
             destination_path: PathBuf::from(r"E:\old【一時作業】"),
             is_notify: true,
+            is_notify_unsaved: false,
+            notify_interval: 30,
             is_shown: true,
             auto_start: false,
             all_files_enabled: false,

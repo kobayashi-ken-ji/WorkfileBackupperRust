@@ -15,6 +15,8 @@ use crate::services::file_manager::{ActiveFileManager};
 use crate::services::wait::wait_for_file_writing;
 use crate::services::backup::{FileBackupper};
 use crate::services::extensions::Extensions;
+use crate::services::timer;
+
 
 
 /// デバウンサ処理と処理中ファイルリストを統合
@@ -88,6 +90,13 @@ impl Watcher {
             return Err(());
         }
 
+        // ファイル未保存時間の計測用スレッド作成
+        let timer_tx = timer::run_timer(
+            config.is_notify_unsaved,
+            config.notify_interval,
+            tx.clone()
+        );
+
         //---------------------------------------------------------------
         
         // 処理中ファイルのリストを排他ロックする
@@ -143,10 +152,12 @@ impl Watcher {
 
                             // move用にコピー
                             let tx = tx.clone();
+                            let timer_tx = timer_tx.clone();
                             let backupper = backupper.clone();
+                            let timer_tx = timer_tx.clone();
 
                             // ファイル変更終了待ち + バックアップ処理
-                            file_manager_clone.execute(&path, |path| {
+                            file_manager_clone.execute(&path, move |path| {
                                 async move {
                                     // 書込みが終了するまで待機
                                     let result = wait_for_file_writing(&path).await;
@@ -155,6 +166,13 @@ impl Watcher {
                                         // 待機成功時: ファイルをバックアップ
                                         WaitResult::Success => {
                                             backupper.backup_file(&path).send(&tx);
+
+                                            // ◆◆◆◆◆◆◆◆◆◆◆◆◆◆◆◆
+                                            // 未保存時間をリセット
+                                            // None → 通知OFFの状態
+                                            if let Some(timer_tx) = timer_tx {
+                                                timer_tx.send(()).await.unwrap();
+                                            }
                                         }
 
                                         // 待機失敗時: メッセージを送信

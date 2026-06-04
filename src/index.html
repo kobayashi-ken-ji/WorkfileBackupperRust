@@ -39,7 +39,6 @@
         </div>
         <hr>
         <div class="box-inner">
-
             <label for="destination-path">バックアップ先</label>
             <div class="folder-select-div">
                 <input type="text" id="destination-path" class="folder-path" placeholder="指定されていません" readonly>
@@ -49,7 +48,6 @@
         <hr>
         <div class="box-inner">
             <label for="destination-path" class="bottom-margin">バックアップするファイル</label>
-            
             <div class="file-type-div">
                 <select id="file-type" required>
                     <option value="all-files-enabled" selected>全てのファイル</option>
@@ -61,13 +59,24 @@
         </div>
     </div>
 
-    <div class="box-title">通知設定</div>
+    <div class="box-title">デスクトップ通知の設定</div>
     <div class="box-body">
         <div class="box-inner">
             <label class="checkbox">
                 <input type="checkbox" id="is-notify" />
-                デスクトップ通知をする
+                バックアップ関連情報を通知
             </label>
+        </div>
+        <hr>
+        <div class="box-inner">
+            <label class="checkbox">
+                <input type="checkbox" id="is-notify-unsaved" />
+                ファイルの未保存を通知
+            </label>
+            <div id="notify-interval-div" class="notify-interval-div">
+                <input type="number" id="notify-interval" min="1" max="9999">
+                <div>分間 保存されたファイルがなければ通知</div>
+            </div>
         </div>
     </div>
 

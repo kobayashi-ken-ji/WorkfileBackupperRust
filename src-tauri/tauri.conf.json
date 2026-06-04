@@ -13,7 +13,7 @@
         "label": "main",
         "title": "Workfile Buckupper",
         "width": 600,
-        "height": 960,
+        "height": 990,
         "center": true
       }
     ],
@@ -31,6 +31,7 @@
       "icons/icon.icns",
       "icons/icon.ico"
     ],
+    "publisher": "Kobayashi Kenji",
     "windows": {
       "wix": {
         "language": ["ja-JP"]

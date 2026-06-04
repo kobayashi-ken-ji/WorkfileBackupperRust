@@ -51,6 +51,30 @@ pub enum NotifyLevel {
 }
 
 //=============================================================================
+// timer.rs の通知型
+//=============================================================================
+
+pub enum TimerInfo {
+    Elapsed { minutes: u64 },   // 未保存時間が指定分経過した
+    // Reset,                   // バックアップされ、未保存時間をリセットした
+    // Start,
+    // Stop,                    // 計測スレッドが終了
+}
+
+impl Notify for TimerInfo {
+    fn to_dto(&self) -> NotifyDTO {
+        use NotifyLevel::*;
+        use TimerInfo::*;
+
+        let (level, title, body) = match self {
+            Elapsed{minutes} => (Info, "ファイル未保存期間", format!("{minutes}分経過")),
+        };
+
+        NotifyDTO { level, title, body }
+    }
+}
+
+//=============================================================================
 // watch.rs のイベント情報型 / 戻り値型
 //=============================================================================
 
