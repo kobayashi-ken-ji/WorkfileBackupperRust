@@ -195,8 +195,14 @@ async function onStartButton() {
         .filter(ext => ext.length > 0); // 空文字は除外
 
     // 未保存の通知間隔
-    // 文字列 → 整数値 → 正数値 (NoN や 0 はデフォルト値へ)
-    const notifyInterval = Math.abs(parseInt(DOM.notifyInterval.value) || 60);
+    const notifyInterval = (()=>{
+
+        // 文字列 → 整数値 (NoNは0へ)
+        let num = parseInt(DOM.notifyInterval.value, 10) || 0;
+
+        // 0未満を排除 (Rust側のu64型に合わせる)
+        return (num < 0) ? 0 : num;
+    })();
 
     // HTMLの値を取得、Config構造体に合わせて格納
     const config = {
@@ -318,12 +324,15 @@ async function initEventListener() {
         const logItem = document.createElement("div");
 
         // ログの種類に応じてCSSを適用
-        logItem.classList.add("log-item", `log-${level}`);
+        logItem.classList.add(
+            "log-item",
+            (level == "errorSilent") ? "error" : level  // レベル名 = CSSクラス名
+        );
 
         // テキストを設定 (タイムスタンプ + メッセージ)
         logItem.innerHTML = `
             <span class="log-time">${date}</span>
-            <span class="log-title log-${level}">${title}</span>
+            <span class="log-title">${title}</span>
             <span class="log-body">${body}</span>
         `;
 

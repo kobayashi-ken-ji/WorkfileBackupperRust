@@ -8,12 +8,12 @@ use std::convert::From;
 
 use crate::models::config::Config;
 use crate::models::notify::{
-    Notify, NotifyPackage, StartResult, StopResult, WaitResult, WatchInfo
+    ConfigError, Notify, NotifyPackage, StartResult, StopResult, WaitResult, WatchInfo
 };
 
 use crate::services::file_manager::{ActiveFileManager};
 use crate::services::wait::wait_for_file_writing;
-use crate::services::backup::{FileBackupper};
+use crate::services::backup;
 use crate::services::extensions::Extensions;
 use crate::services::timer;
 
@@ -44,51 +44,72 @@ impl Watcher {
     }
 
 
+    /// 設定値が正しいかチェック
+    /// start() の実行前に必ず行う
+    /// 値をチェックして、修正可能な部分を直して返す
+    pub fn validate_config(&self, mut config: Config) -> std::result::Result<Config, ConfigError> {
+        use ConfigError::*;
+
+        // 監視するフォルダ
+        // canonicalize: 正規化 (絶対パス化 + 余計な/や.を削除)
+        config.source_path = match config.source_path.canonicalize() {
+            Ok(path) => {
+                if path.is_dir() { path }
+                else { return Err(InvalidSourcePath); }
+            }
+            Err(error) => {
+                eprintln!("{error}");
+                return Err(InvalidSourcePath);
+            }
+        };
+        
+        // バックアップ先フォルダ
+        config.destination_path = match config.destination_path.canonicalize() {
+            Ok(path) => {
+                if path.is_dir() { path }
+                else { return Err(InvalidDestinationPath); }
+            }
+            Err(error) => {
+                eprintln!("{error}");
+                return Err(InvalidDestinationPath);
+            }
+        };
+
+        // バックアップ元とバックアップ先が同じ
+        if config.source_path == config.destination_path {
+            return Err(PathConflict);
+        }
+
+        // バックアップするファイル
+        if !config.all_files_enabled &&     // 「全てのファイル」がfalse
+            config.extensions.len() < 1     // 拡張子がひとつも登録されていない
+        {
+            return Err(NoExtension);
+        }
+
+        // 未保存の通知
+        if config.is_notify_unsaved &&      // 通知が有効
+            config.notify_interval < 1      // 1分以下
+        {
+            return Err(InvalidNotifyInterval);
+        }
+
+        Ok(config)
+    }
+
+
     /// 「開始」ボタンが押されたときの処理
     /// 戻り値： フォルダ監視の開始に成功したか
     pub fn start(&self, config: &Config, tx: Sender<NotifyPackage>) -> std::result::Result<(), ()> {
-
         use StartResult::*;
 
         // バックアップの対象 (全てのファイル or 指定された拡張子リスト)
         let all_files_enabled = config.all_files_enabled;
         let extensions = Extensions::from(config.extensions.as_slice());
 
-        // 監視先フォルダ
-        // canonicalize: 正規化 (絶対パス化 + 余計な/や.を削除)
-        let watch_path = match config.source_path.canonicalize() {
-            Ok(path) => path,
-            Err(error) => {
-                eprintln!("{error}");
-                InvalidSourcePath.send(&tx);
-                return Err(());
-            }
-        };
-        
-        // バックアップ先フォルダを指定
-        let destination_path = match config.destination_path.canonicalize() {
-            Ok(path) => path,
-            Err(error) => {
-                eprintln!("{error}");
-                InvalidDestinationPath.send(&tx);
-                return Err(());
-            }
-        };
-
-        // バックアップ元とバックアップ先が同じ
-        if watch_path == destination_path {
-            PathConflict.send(&tx);
-            return Err(());
-        }
-        
-        // バックアップ用インスタンスを生成
-        let backupper = FileBackupper::new(&destination_path);
-        if !backupper.is_valid() {
-
-            // バックアップ先がフォルダではない
-            InvalidDestinationPath.send(&tx);
-            return Err(());
-        }
+        // configから取り出す (validate_configで値チェック済み)
+        let watch_path = config.source_path.clone();
+        let destination_path = config.destination_path.clone();
 
         // ファイル未保存時間の計測用スレッド作成
         let timer_tx = timer::run_timer(
@@ -153,8 +174,7 @@ impl Watcher {
                             // move用にコピー
                             let tx = tx.clone();
                             let timer_tx = timer_tx.clone();
-                            let backupper = backupper.clone();
-                            let timer_tx = timer_tx.clone();
+                            let destination_path = destination_path.clone();
 
                             // ファイル変更終了待ち + バックアップ処理
                             file_manager_clone.execute(&path, move |path| {
@@ -165,9 +185,8 @@ impl Watcher {
 
                                         // 待機成功時: ファイルをバックアップ
                                         WaitResult::Success => {
-                                            backupper.backup_file(&path).send(&tx);
+                                            backup::backup_file(&destination_path, &path).send(&tx);
 
-                                            // ◆◆◆◆◆◆◆◆◆◆◆◆◆◆◆◆
                                             // 未保存時間をリセット
                                             // None → 通知OFFの状態
                                             if let Some(timer_tx) = timer_tx {

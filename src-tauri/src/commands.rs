@@ -1,4 +1,6 @@
-use tauri::{AppHandle, Window, State};
+use tauri::{AppHandle, Manager, State, WebviewWindowBuilder, Window, window};
+use tauri_plugin_dialog::{DialogExt, MessageDialogButtons, MessageDialogKind};
+
 
 use crate::MessageSender;
 use crate::models::config::Config;
@@ -41,10 +43,11 @@ pub fn get_config(
 // 引数に tauri::AppHandle を追加すると、自動で渡してくれる
 
 /// 「開始」ボタンの処理
+/// 戻り値 - Ok:開始した, Err:開始できなかった
 #[tauri::command]
 pub async fn start_watching(
     sender: State<'_, MessageSender>, watcher: State<'_, Watcher>,
-    app: AppHandle, config: Config) -> Result<(), ()> {
+    app: AppHandle, mut config: Config) -> Result<(), ()> {
     
     // 「デスクトップ通知をする」設定を送信
     let tx = sender.tx.clone();
@@ -57,10 +60,39 @@ pub async fn start_watching(
     // 設定ファイルを保存
     if let Err(error) = config.save(&app) {
         eprintln!("設定ファイルの保存に失敗: {}", error);
+
+        // ※通知処理を追記する
     }
+
+    // 設定のバリデーションチェック
+    config = match watcher.validate_config(config) {
+        Ok(config) => config,
+        Err(error) => {
+
+            // UI/ログ用の受信機へ送信
+            error.send(&tx);
+            
+            let message = format!("開始できませんでした\n{}", error.to_dto().body);
+
+            let main_window = app.get_webview_window("main")
+                .expect("メインウィンドウの取得に失敗");
+
+            // モーダルダイアログを表示
+            app.dialog()
+                .message(message)
+                // .title("サーバーエラー")
+                .kind(MessageDialogKind::Info)
+                .buttons(MessageDialogButtons::Ok)
+                .parent(&main_window)   // メインウィンドウをブロック
+                .blocking_show();
+
+            return Err(());
+        }
+    };
 
     // 開始処理を呼出し
     let result = watcher.start(&config, tx);
+
     result
 }
 
@@ -78,3 +110,74 @@ pub async fn stop_watching(sender: State<'_, MessageSender>,
 
     Ok(())
 }
+
+//=============================================================================
+// ユーザー入力のエラー表示
+//=============================================================================
+// fn open_misconfig_window(app: &tauri::AppHandle) {
+
+//     use tauri_plugin_dialog::{DialogExt, MessageDialogButtons, MessageDialogKind};
+
+//     let answer = app.dialog()
+//         .message("設定が正しくありません")
+//         // .title("サーバーエラー")
+//         .kind(MessageDialogKind::Info)
+//         .buttons(MessageDialogButtons::Ok)
+//         .blocking_show();
+
+
+//     // let main_window = app.get_webview_window("main").expect("メインウィンドウの取得に失敗");
+
+//     // let child = WebviewWindowBuilder::new(
+//     //     app,
+//     //     "modal-window",
+//     //     tauri::WebviewUrl::App("misconfig.html".into())
+//     // );
+
+//     // let child = child.parent(&main_window).unwrap();
+
+//     // let window = child
+//     //     .title("開始できませんでした")
+//     //     .inner_size(400.0, 300.0)
+//     //     // .always_on_top(true)
+//     //     .build();
+
+//     // let Ok(window) = window else {
+//     //     eprintln!("設定エラーウィンドウの表示に失敗");
+//     //     return;
+//     // };
+
+//     // // 親ウィンドウをセット
+//     // if let Some(parent) = app.get_webview_window("main") {
+//     //     window.set_parent
+//     // }
+// }
+
+// fn open_misconfig_window(app: &tauri::AppHandle) {
+
+//     let main_window = app.get_webview_window("main").expect("メインウィンドウの取得に失敗");
+
+//     let child = WebviewWindowBuilder::new(
+//         app,
+//         "modal-window",
+//         tauri::WebviewUrl::App("misconfig.html".into())
+//     );
+
+//     let child = child.parent(&main_window).unwrap();
+
+//     let window = child
+//         .title("開始できませんでした")
+//         .inner_size(400.0, 300.0)
+//         // .always_on_top(true)
+//         .build();
+
+//     // let Ok(window) = window else {
+//     //     eprintln!("設定エラーウィンドウの表示に失敗");
+//     //     return;
+//     // };
+
+//     // // 親ウィンドウをセット
+//     // if let Some(parent) = app.get_webview_window("main") {
+//     //     window.set_parent
+//     // }
+// }

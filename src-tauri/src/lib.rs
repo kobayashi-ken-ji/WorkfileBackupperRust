@@ -146,9 +146,12 @@ pub fn run() {
                     // 第二引数: 送信するデータ
                     app_handle.emit("log-event", &dto).eprint("JSへのログ通知に失敗");
 
-                    // Silent → デスクトップ通知をしない
-                    if dto.level == NotifyLevel::Silent { continue; }
-                    if !is_desktop_notify { continue; }
+                    // デスクトップ通知を行うか判定
+                    if  !is_desktop_notify ||
+                        dto.level == NotifyLevel::Silent ||
+                        dto.level == NotifyLevel::ErrorSilent {
+                        continue;
+                    }
 
                     // メインスレッドから通知しないと、Windowsは1度保留にしてしまう
                     let app_handle_clone = app_handle.clone();

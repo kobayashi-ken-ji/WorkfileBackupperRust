@@ -50,6 +50,11 @@ h2, h3 {
     visibility: hidden;
 }
 
+/* メインウィンドウ以外に使用する、bodyのパディング */
+.sub-window-body {
+    padding: 25px;
+}
+
 /*===========================================================================*/
 /* box (関連設定をまとめるウィンドウ) */
 /*===========================================================================*/
@@ -277,9 +282,9 @@ button:disabled {
     margin: 2px 0px;
     line-height: 1.4;
 }
-.log-item.log-info   { color: var(--info-color); }      /* 成功：緑*/
-.log-item.log-silent { color: var(--silent-color); }    /* 軽度の情報：灰 */
-.log-item.log-error  { color: var(--error-color); }     /* エラー：赤*/
+.log-item.info   { color: var(--info-color); }      /* 成功：緑*/
+.log-item.silent { color: var(--silent-color); }    /* 軽度の情報：灰 */
+.log-item.error  { color: var(--error-color); }     /* エラー：赤*/
 
 /* ログ時刻 */
 .log-time {

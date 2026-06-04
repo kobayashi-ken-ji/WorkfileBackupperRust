@@ -43,11 +43,12 @@ pub struct NotifyDTO {
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize)]
 #[serde(rename_all = "camelCase")] // JSでは「info, error, silent」になる
 pub enum NotifyLevel {
-    Error,  // 赤文字: GUI表示 + デスクトップ通知
-    Info,   // 緑文字: GUI表示 + デスクトップ通知
-    Silent, // 灰文字: GUI表示のみ (デスクトップ通知なし)
-    Debug,  // コンソール表示のみ (開発用)
-            // Warn,
+    ErrorSilent,  // 赤文字: GUI表示のみ (デスクトップ通知なし / 個別にダイアログ表示などを行う)
+    Error,        // 赤文字: GUI表示 + デスクトップ通知
+    Info,         // 緑文字: GUI表示 + デスクトップ通知
+    Silent,       // 灰文字: GUI表示のみ (デスクトップ通知なし)
+    Debug,        // コンソール表示のみ (開発用)
+    // Warn,
 }
 
 //=============================================================================
@@ -101,13 +102,42 @@ impl Notify for WatchInfo {
     }
 }
 
+
+/// Config型のバリデーションチェックの結果値
+#[derive(Debug, Clone, serde::Serialize)]
+pub enum ConfigError {
+    InvalidSourcePath,          // バックアップ元フォルダが無効
+    InvalidDestinationPath,     // バックアップ先フォルダが無効
+    PathConflict,               // バックアップ元/先 が同じ
+    NoExtension,                // 拡張子(バックアップ対象) が1つも設定されていない
+    InvalidNotifyInterval,      // ファイルの未保存を通知の時間設定が無効
+}
+
+impl Notify for ConfigError {
+    fn to_dto(&self) -> NotifyDTO {
+        use NotifyLevel::*;
+        use ConfigError::*;
+
+        let (level, title, body) = match self {
+            InvalidSourcePath      => (ErrorSilent, "開始失敗", "バックアップ元フォルダが無効です".into()),
+            InvalidDestinationPath => (ErrorSilent, "開始失敗", "バックアップ先フォルダが無効です".into()),
+            PathConflict           => (ErrorSilent, "開始失敗", "バックアップ元とバックアップ先が同じです".into()),
+            NoExtension            => (ErrorSilent, "開始失敗", "拡張子を一つ以上設定してください".into()),
+            InvalidNotifyInterval  => (ErrorSilent, "開始失敗", "未保存通知は1分以上に設定してください".into()),
+        };
+
+        NotifyDTO { level, title, body }
+    }
+}
+
+
 /// フォルダ監視の開始処理の結果 (UI/ログへの送信用)
 #[derive(Debug, Clone, serde::Serialize)]
 pub enum StartResult {
     Success,                    // フォルダ監視の開始に成功
-    InvalidSourcePath,          // バックアップ元フォルダが無効
-    InvalidDestinationPath,     // バックアップ先フォルダが無効
-    PathConflict,               // バックアップ元/先 が同じ
+    // InvalidSourcePath,          // バックアップ元フォルダが無効
+    // InvalidDestinationPath,     // バックアップ先フォルダが無効
+    // PathConflict,               // バックアップ元/先 が同じ
     AlreadyRunning,             // 既に監視が開始している
     NewDebouncerFailed,         // デバウンサーの生成に失敗
     DebounceStartFailed,        // デバウンサーが監視開始に失敗
@@ -120,9 +150,9 @@ impl Notify for StartResult {
 
         let (level, title, body) = match self {
             Success                => (Info,  "バックアップを開始しました", "".into()),
-            InvalidSourcePath      => (Error, "開始失敗", "バックアップ元フォルダが無効です".into()),
-            InvalidDestinationPath => (Error, "開始失敗", "バックアップ先フォルダが無効です".into()),
-            PathConflict           => (Error, "開始失敗", "バックアップ元とバックアップ先が同じです".into()),
+            // InvalidSourcePath      => (Error, "開始失敗", "バックアップ元フォルダが無効です".into()),
+            // InvalidDestinationPath => (Error, "開始失敗", "バックアップ先フォルダが無効です".into()),
+            // PathConflict           => (Error, "開始失敗", "バックアップ元とバックアップ先が同じです".into()),
             AlreadyRunning         => (Info,  "既にフォルダ監視中", "".into()),
             NewDebouncerFailed     => (Error, "開始失敗", "デバウンサーの生成に失敗しました".into()),
             DebounceStartFailed    => (Error, "開始失敗", "デバウンサーの開始に失敗しました".into()),
