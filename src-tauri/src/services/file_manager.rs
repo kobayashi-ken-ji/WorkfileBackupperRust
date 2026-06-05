@@ -32,11 +32,11 @@ impl Drop for FileTaskGuard {
 /// 処理中のファイルを管理
 pub struct ActiveFileManager  {
 
-    // ※ std版のMutex
+    // ※ std版のMutex (lock中にawaitが不要なため、軽量なstd版)
     /// 処理中ファイルのリスト (所有者複数化、排他制御化)
     active_files: Arc<Mutex<  HashSet<PathBuf>  >>,
 
-    // ※ Tokio版のMutex
+    // ※ Tokio版のMutex (lockしたままawaitさせる必要があるため)
     /// 生成した非同期タスクのリスト
     tasks: tokio::sync::Mutex<JoinSet<()>>,
 
@@ -130,7 +130,7 @@ impl ActiveFileManager  {
         // Tokio版のため、ポイズンエラーは発生しない
         let mut tasks_lock = self.tasks.lock().await;
 
-        // 終了したタスクから順にポップされ、すべて終わるまで非同期に待機する
+        // 終了したタスクから順にSomeを返され、すべて終わるまで非同期に待機する
         while let Some(_) = tasks_lock.join_next().await {}
             // join_next()
             // いずれかのタスクの完了を待機する

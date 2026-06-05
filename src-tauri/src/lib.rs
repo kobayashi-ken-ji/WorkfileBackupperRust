@@ -114,7 +114,13 @@ pub fn run() {
 
             // チャンネル受信用スレッドを起動
             let app_handle = app.handle().clone();
-            tauri::async_runtime::spawn(async move {
+
+            // tauri::async_runtime::spawn(async move {
+
+            // 受信機がstd版の為、スレッドもstd版に変更
+            // Tokioタスク内でstd受信機でブロックすると、
+            // コア数分しかないTokioスレッドを1つブロックしてしまう
+            std::thread::spawn(move || {
 
                 // デスクトップ通知を行うか
                 let mut is_desktop_notify = false;

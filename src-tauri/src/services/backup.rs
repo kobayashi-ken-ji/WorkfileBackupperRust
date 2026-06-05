@@ -1,6 +1,7 @@
 use std::fs;
 use std::path::{PathBuf, Path};
 use chrono::{DateTime, Local};
+use crate::models::eprint::ResutlErrPrint;
 use crate::models::notify::BackupResult;
 
 //=============================================================================
@@ -34,6 +35,8 @@ pub fn backup_file(destination: &Path, path: &Path) -> BackupResult {
     let local_time: DateTime<Local> = DateTime::from(system_time);
     let time_stamp = local_time.format("%Y%m%d_%H%M%S").to_string();
 
+    // ◆◆◆◆◆◆◆◆◆◆◆◆◆◆◆◆◆◆◆◆◆
+
     // ファイル名を取得
     let Some(file_stem) = path.file_stem() else {
         return InvalidFileName(path.to_path_buf());
@@ -66,6 +69,49 @@ pub fn backup_file(destination: &Path, path: &Path) -> BackupResult {
             return CopyFailed(new_path);
         }
     }
+}
+
+
+/// 「フォルダ階層に対応したコピー先」のパスを生成
+/// 無ければフォルダも生成
+/// 問題発生時は destination をそのまま返す
+/// 
+/// 例
+/// コピー元フォルダ: /sorce/
+/// コピー先フォルダ: /dest/
+/// コピーするファイル: /sorce/folder/file.txt   ※ folderを検出
+/// 戻り値: /dest/folder/                       ※ コピー先に結合
+pub fn get_destination_for_recursive(source: &Path, destination: &Path, file: &Path) -> PathBuf {
+
+    // この時点で正規化されている
+    // println!("検出したファイル: {:?}", file);
+
+    // 親ディレクトリを抽出 (ファイル名の除去)
+    let Some(parent) = file.parent() else {
+        eprint!("親ディレクトリの取得に失敗: {:?}", file);
+        return PathBuf::from(destination);
+    };
+
+    // 相対パスを抽出 (監視フォルダ部分の除去)
+    let relative_path = match parent.strip_prefix(source) {
+        Ok(p) => p,
+        Err(error) => {
+            eprint!("相対パス化に失敗: {error}");
+            return PathBuf::from(destination);
+        }
+    };
+    
+    // 新ファイルパス (行先フォルダ + 相対パス)
+    let new_path = destination.join(relative_path);
+
+    // 親ディレクトリが無ければ作成
+    if let Err(error) = fs::create_dir_all(&new_path) {
+        eprintln!("親ディレクトリの作成に失敗: {error}");
+        return PathBuf::from(destination);
+    }
+
+    // println!("サブフォルダ対応後のコピー先フォルダ: {:?}", new_path);
+    PathBuf::from(new_path)
 }
 
 

@@ -7,6 +7,7 @@ use notify_debouncer_full::notify::{RecommendedWatcher};
 use std::convert::From;
 
 use crate::models::config::Config;
+use crate::models::eprint::ResutlErrPrint;
 use crate::models::notify::{
     ConfigError, Notify, NotifyPackage, StartResult, StopResult, WaitResult, WatchInfo
 };
@@ -110,6 +111,7 @@ impl Watcher {
         // configから取り出す (validate_configで値チェック済み)
         let watch_path = config.source_path.clone();
         let destination_path = config.destination_path.clone();
+        let recursive = config.recursive;
 
         // ファイル未保存時間の計測用スレッド作成
         let timer_tx = timer::run_timer(
@@ -135,12 +137,14 @@ impl Watcher {
             return Err(());
         }
 
-        // クローン用の中間変数
+        // move用にクローンする
+        // Arcで包んであるためクローン可
         let file_manager_clone = self.file_manager.clone();
 
         // デバウンサ (2秒間イベントが途切れるのを待つ)
         // 毎回新しく生成
         let tx_clone = tx.clone();
+        let watch_path_clone = watch_path.clone();
         let debouncer = new_debouncer(Duration::from_secs(2), None, move |result: DebounceEventResult| {
             match result {
                 Ok(events) => {
@@ -175,6 +179,7 @@ impl Watcher {
                             let tx = tx.clone();
                             let timer_tx = timer_tx.clone();
                             let destination_path = destination_path.clone();
+                            let watch_path = watch_path.clone();
 
                             // ファイル変更終了待ち + バックアップ処理
                             file_manager_clone.execute(&path, move |path| {
@@ -185,12 +190,21 @@ impl Watcher {
 
                                         // 待機成功時: ファイルをバックアップ
                                         WaitResult::Success => {
+
+                                            // 相対パス対応のコピー先を生成
+                                            let destination_path = if recursive {
+                                                backup::get_destination_for_recursive(&watch_path, &destination_path, &path)
+                                            } else {
+                                                destination_path
+                                            };
+                                            
                                             backup::backup_file(&destination_path, &path).send(&tx);
 
                                             // 未保存時間をリセット
                                             // None → 通知OFFの状態
                                             if let Some(timer_tx) = timer_tx {
-                                                timer_tx.send(()).await.unwrap();
+                                                timer_tx.send(()).await
+                                                    .eprint("未保存時間リセット信号の送信エラー");
                                             }
                                         }
 
@@ -218,8 +232,15 @@ impl Watcher {
             }
         };
 
+        // 「サブフォルダを含まない」の反映
+        let mode = if config.recursive {
+            RecursiveMode::Recursive
+        } else {
+            RecursiveMode::NonRecursive
+        };
+
         // フォルダを監視対象に登録 (NonRecursive = サブフォルダを含まない)
-        if let Err(error) = debouncer.watch(watch_path, RecursiveMode::NonRecursive) {
+        if let Err(error) = debouncer.watch(watch_path_clone, mode) {
             eprintln!("{error}");
             DebounceStartFailed.send(&tx_clone);
             return Err(());

@@ -12,6 +12,7 @@ pub struct Config {
     // バックアップ設定
     pub source_path: PathBuf,       // バックアップ元フォルダ
     pub destination_path: PathBuf,  // バックアップ先フォルダ
+    pub recursive: bool,            // サブフォルダを含める
     pub all_files_enabled: bool,    // 全てのファイルをバックアップする
     pub extensions: Vec<String>,    // バックアップするファイルの種類 (拡張子)
 
@@ -31,6 +32,7 @@ impl Default for Config {
         Self {
             source_path: PathBuf::from(r"D:\一時作業ファイル"),
             destination_path: PathBuf::from(r"E:\old【一時作業】"),
+            recursive: true,
             all_files_enabled: false,
             extensions: vec![
                 String::from("txt"),
@@ -113,6 +115,7 @@ mod tests {
         let config = Config {
             source_path: PathBuf::from(r"D:\一時作業ファイル"),
             destination_path: PathBuf::from(r"E:\old【一時作業】"),
+            recursive: true,
             is_notify: true,
             is_notify_unsaved: false,
             notify_interval: 30,

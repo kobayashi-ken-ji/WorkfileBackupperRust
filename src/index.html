@@ -47,7 +47,14 @@
         </div>
         <hr>
         <div class="box-inner">
-            <label for="destination-path" class="bottom-margin">バックアップするファイル</label>
+            <label>
+                <input type="checkbox" id="recursive" />
+                サブフォルダを含める
+            </label>
+        </div>
+        <hr>
+        <div class="box-inner">
+            <label for="file-type" class="bottom-margin">バックアップするファイル</label>
             <div class="file-type-div">
                 <select id="file-type" required>
                     <option value="all-files-enabled" selected>全てのファイル</option>
@@ -107,6 +114,8 @@
     </div>
 
     <div class="box-title">ログ</div>
-    <div id="log-box" class="box-body log-box"></div>
+    <div class="box-body log-outer">
+        <div id="log-box" class="log-box"></div>
+    </div>
 </body>
 </html>

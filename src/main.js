@@ -25,6 +25,7 @@ const DOM = {
     sourceBtn       : document.getElementById("source-btn"),
     destinationPath : document.getElementById("destination-path"),
     destinationBtn  : document.getElementById("destination-btn"),
+    recursive       : document.getElementById("recursive"),
     fileType        : document.getElementById("file-type"),
     fileTypeTip     : document.getElementById("file-type-tip"),
     extensions      : document.getElementById("extensions"),
@@ -161,6 +162,7 @@ async function loadConfig() {
     // config内はキャメルケース化済み
     DOM.sourcePath.value        = config.sourcePath;
     DOM.destinationPath.value   = config.destinationPath;
+    DOM.recursive.checked       = config.recursive;
     DOM.fileType.value          = fileType;
     DOM.extensions.value        = config.extensions.join(" "); // 配列→文字列
     DOM.isNotify.checked        = config.isNotify;
@@ -208,6 +210,7 @@ async function onStartButton() {
     const config = {
         sourcePath      : DOM.sourcePath.value,
         destinationPath : DOM.destinationPath.value,
+        recursive       : DOM.recursive.checked,
         allFilesEnabled : allFilesEnabled,
         extensions      : extensionsArray,
         isNotify        : DOM.isNotify.checked,
@@ -318,7 +321,8 @@ async function initEventListener() {
         const {level, title, body} = dto;
 
         // 現在時刻を文字列化 (HH:MM 形式)
-        const date = new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit"});
+        const date = new Date().toLocaleTimeString([],
+            { hour: "2-digit", minute: "2-digit", second: "2-digit" });
 
         // 新しいログ要素を作成 (p or div)
         const logItem = document.createElement("div");
@@ -330,11 +334,11 @@ async function initEventListener() {
         );
 
         // テキストを設定 (タイムスタンプ + メッセージ)
-        logItem.innerHTML = `
-            <span class="log-time">${date}</span>
-            <span class="log-title">${title}</span>
-            <span class="log-body">${body}</span>
-        `;
+        // 改行やスペースが入ると、2px程度の隙間になるため、+で繋ぐ
+        logItem.innerHTML =
+            `<span class="log-time">${date}</span>` +
+            `<span class="log-title">${title}</span>` +
+            `<span class="log-body">${body}</span>`;
 
         // ボックスの先頭に追加
         DOM.logBox.insertBefore(logItem, DOM.logBox.firstChild);

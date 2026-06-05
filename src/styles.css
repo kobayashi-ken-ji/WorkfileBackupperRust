@@ -33,6 +33,22 @@ body {
     background: var(--body-bg);
     color: #333;
     font-size: 85%;
+
+    /* ログ高さ可変用に縦並べ */
+    display: flex;
+    flex-direction: column;
+
+    /* スライダー表示時、下部余白が消えるのを防ぐ */
+    box-sizing: border-box;
+    min-height: 100vh;
+
+    /*  [補足]
+        height: 100%;       → 親要素と同じ高さに固定
+        min-height: 100vh;  → 内要素に応じて伸びる
+
+        %  → 親高さ比   (親が子高さを使っている場合は伸ばせない)
+        vh → 画面高さ比 (flex-grow で画面高さまで伸ばせる)
+    */
 }
 
 /* フォント設定を引き継がない要素にも反映させる */
@@ -267,14 +283,37 @@ button:disabled {
 /*===========================================================================*/
 
 /* ログウィンドウ */
-.log-box {
-    height: 150px;
-    overflow-y: auto;
+.log-outer {
     background: #ffffff;
-    padding: 8px;
     font-size: 14px;
-    /* border: 1px solid var(--dark-color); */
-    /* border-radius: 0 0 3px 3px; */
+
+    /* スクロールバー部分のみ、パディング無し */
+    padding: 6px 0px 6px 8px;
+
+    /*
+        高さをウィンドウに合わせて可変化
+            flex-grow で画面端まで伸ばせる
+    */
+    flex-grow: 1;
+
+    /*
+        要素内が伸びたら、内側にスクロールバーを表示
+            flexの子要素は height:auto; が標準 → 内要素に合わせて高さが増えてしまう
+            0にすることで、伸びずにスクロールバーを表示 (overflow-y の効果)
+    */
+    height: 0;
+    min-height: 100px;
+}
+
+/* インナー: スクロール時にパディング部分にも表示されてしまうことを避ける */
+.log-box {
+    height: 100%;
+    overflow-y: auto;
+    box-sizing: border-box;
+
+    /* スクロールバーの「左側」に余白を作る */
+    /* スクロールバーが表示されていなくても余白ができる */
+    padding-right: 8px;
 }
 
 /* ログ 横一列 (種類ごとに色分け) */
@@ -288,17 +327,21 @@ button:disabled {
 
 /* ログ時刻 */
 .log-time {
-    margin: 4px 0px;
+    /* margin: 4px 0px; */
     /* color: #888; */
+    /* padding: 0; */
     font-family: monospace;  /* 等幅で時間をそろえる*/
-    margin-right: 4px;
+    /* margin-right: 4px; */
 }
 
 /* ログタイトル   背景:濃色, 文字:白色 */
 .log-title {
     font-weight: bold;
-    padding: 0px 6px;
-    margin-right: 6px;
+    margin: 0px 10px;
+    /* padding: 0; */
+
+    /* padding: 0px 6px; */
+    /* margin-right: 6px; */
     /*     
     color: white;
     border-radius: 3px;
@@ -314,6 +357,8 @@ button:disabled {
 
 /* ログ本文 */
 .log-body {
+    /* padding: 0; */
+
     word-break: break-all;  /* 枠内で折り返す*/
 }
 
