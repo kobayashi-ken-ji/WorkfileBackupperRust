@@ -1,20 +1,17 @@
-#![allow(dead_code)]            // 未使用関数・構造体
-#![allow(unused_variables)]     // 未使用変数
-#![allow(unused_imports)]       // 未使用インポート
+// #![allow(dead_code)]            // 未使用関数・構造体
+// #![allow(unused_variables)]     // 未使用変数
+// #![allow(unused_imports)]       // 未使用インポート
 
 pub mod commands;
 pub mod services;
 pub mod models;
 
-use std::sync::mpsc::{channel};
-use tauri_plugin_notification::NotificationExt;
 use tauri::{AppHandle, Manager, Emitter, WebviewUrl, WebviewWindowBuilder};
 use tauri::menu::{Menu, MenuItem};
 use tauri::tray::TrayIconBuilder;
 
-use crate::models::state::MessageSender;
+use crate::models::state::ConfigState;
 use crate::models::eprint::ResutlErrPrint;
-use crate::models::notify::{NotifyLevel, NotifyPackage};
 use crate::services::watch::Watcher;
 
 //=============================================================================
@@ -26,9 +23,6 @@ use crate::services::watch::Watcher;
 // モバイルアプリビルド : 静的ライブラリとして読み込まれるため、ここを呼出すように設定する
 #[cfg_attr(mobile, tauri::mobile_entory_point)]
 pub fn run() {
-
-    // 送信機/受信機を生成
-    let (tx, rx) = channel::<NotifyPackage>();
 
     // Tauri側のTokioランタイムのハンドルを取得
     // tokio::runtime::Handleに変換するには、inner()が必要
@@ -52,11 +46,11 @@ pub fn run() {
         }))
 
         // Tauri::Stateに登録
-        .manage(MessageSender { tx })
+        .manage(ConfigState::new())
         .manage(Watcher::new(tokio_handle.inner()))
 
         // 引数のクロージャ内は別スレッドで実行される模様
-        // JSからアクセスする Sender は先にmanageしておく
+        // JSからアクセスが必要なものは、先にmanageしておく
         .setup(|app| {
 
             // 右クリックメニューの作成
@@ -92,89 +86,6 @@ pub fn run() {
                     _ => {}
                 })
                 .build(app)?;
-
-            // 起動時はウィンドウを非表示
-            // if let Some(window) = app.get_webview_window("main") {
-            //     let _ = window.hide();
-            // }
-
-            //-------------------------------------------------------
-
-            // Tauri側のTokioランタイムのハンドルを取得
-            // tokio::runtime::Handleに変換するには、inner()が必要
-            // let tokio_handle = tauri::async_runtime::handle();
-            
-            // 送信機/受信機を生成
-            // let (tx, rx) = channel::<NotifyPackage>();
-
-            // 送信機をTauriのStateに登録
-            // app.manage(MessageSender { tx });
-            // app.manage(Watcher::new(tokio_handle.inner()));
-
-
-            // チャンネル受信用スレッドを起動
-            let app_handle = app.handle().clone();
-
-            // tauri::async_runtime::spawn(async move {
-
-            // 受信機がstd版の為、スレッドもstd版に変更
-            // Tokioタスク内でstd受信機でブロックすると、
-            // コア数分しかないTokioスレッドを1つブロックしてしまう
-            std::thread::spawn(move || {
-
-                // デスクトップ通知を行うか
-                let mut is_desktop_notify = false;
-
-                // Receiverにメッセージが届くのを待ち受ける
-                while let Ok(package) = rx.recv() {
-
-                    // 通知 / 設定変更 の判別
-                    let dto = match package {
-                        NotifyPackage::Message(dto) => dto,
-                        NotifyPackage::Config { is_notify } => {
-                            is_desktop_notify = is_notify;
-                            continue;
-                        }
-                    };
-
-                    let message = format!("{}: {}", dto.title, dto.body);
-
-                    // デバッグ時のみコンソールへ表示
-                    if cfg!(debug_assertions) {
-                        println!("{message}");
-                    }
-
-                    // Debug → コンソール以外には表示しない
-                    if dto.level == NotifyLevel::Debug { continue; }
-
-                    // TauriのイベントシステムでJSへ送信
-                    // 第一引数: イベント名(自由)
-                    // 第二引数: 送信するデータ
-                    app_handle.emit("log-event", &dto).eprint("JSへのログ通知に失敗");
-
-                    // デスクトップ通知を行うか判定
-                    if  !is_desktop_notify ||
-                        dto.level == NotifyLevel::Silent ||
-                        dto.level == NotifyLevel::ErrorSilent {
-                        continue;
-                    }
-
-                    // メインスレッドから通知しないと、Windowsは1度保留にしてしまう
-                    let app_handle_clone = app_handle.clone();
-                    app_handle.run_on_main_thread(move || {
-
-                        // デスクトップ通知を送信
-                        // ※ インストーラを使用しない場合、アプリ名がPowerShellになる
-                        app_handle_clone.notification()
-                            .builder()
-                            .title(dto.title)
-                            .body(dto.body)
-                            .show()
-                            .eprint("デスクトップ通知に失敗");
-
-                    }).eprint("メインスレッドへの委託に失敗");
-                }
-            });
 
             Ok(())
         })
@@ -229,16 +140,3 @@ pub fn open_vesion_window(app: &AppHandle) {
         .build()
         .eprint("バージョン表示ウィンドウのビルドに失敗");
 }
-
-
-// tauri.conf.json で記述する場合
-//      ただし、常にメモリを消費する
-//   {
-//     "label": "version-info",
-//     "title": "バージョン情報",
-//     "url": "version.html",
-//     "width": 400,
-//     "height": 200,
-//     "center": true,
-//     "visible": false
-//   }

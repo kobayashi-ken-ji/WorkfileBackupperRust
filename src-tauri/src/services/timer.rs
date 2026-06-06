@@ -1,15 +1,7 @@
 use std::{time::Duration};
 use tokio::time::sleep;
 use tokio::sync::mpsc::{self, Sender};  // Tokio版を使用すること
-use std::sync::mpsc::Sender as StdSender;
-use crate::models::notify::{Notify, NotifyPackage, TimerInfo};
-
-
-// pub struct Timer {
-//     timeout_mins: u64,
-// }
-// impl Timer {
-
+use crate::models::notify::{Notify, TimerInfo};
 
 
 /// 「指定時間 経過した時」に通知する
@@ -26,13 +18,14 @@ use crate::models::notify::{Notify, NotifyPackage, TimerInfo};
 /// # 引数
 /// * `enabled`      - 処理のON/OFF。falseの場合は何もせず、None を返す
 /// * `timeout_mins` - 通知するまでの時間 (単位：分)
-/// * `notify_tx`    - UIへの通知用送信機
+/// * `app`          - TimerInfoをsendするための、アプリハンドル
 /// 
 /// # 戻り値
 ///     経過時間をリセットするための送信機 (ファイル保存時に使用)
 ///     enabled が false の場合は None を返す
 /// 
-pub fn run_timer(enabled: bool, timeout_mins: u64, notify_tx: StdSender<NotifyPackage>)
+pub fn run_timer
+    (enabled: bool, timeout_mins: u64, app: tauri::AppHandle)
     -> Option<Sender<()>> {
 
     // 無効な場合 → Senderを生成しないので、代わりにNoneを返す
@@ -61,7 +54,7 @@ pub fn run_timer(enabled: bool, timeout_mins: u64, notify_tx: StdSender<NotifyPa
 
                     // 経過時間を、UI用の受信機へ送る
                     let minutes = timeout_mins * timeout_count;
-                    TimerInfo::Elapsed { minutes }.send(&notify_tx);
+                    TimerInfo::Elapsed { minutes }.send(&app, enabled);
                 }
                 
                 // 受信 (ファイルがバックアップされた)

@@ -92,14 +92,6 @@ impl Config {
         fs::read_to_string(path)
             .and_then(|content| serde_json::from_str(&content).map_err(|e| e.into()))
     }
-
-    // pub fn load(app_handle: &AppHandle) -> Self {
-    //     let path = Self::get_path(app_handle);
-
-    //     fs::read_to_string(path)
-    //         .and_then(|content| serde_json::from_str(&content).map_err(|e| e.into()))
-    //         .unwrap_or_else(|_| Self::default())    // 失敗時はデフォルト値
-    // }
 }
 
 //=============================================================================

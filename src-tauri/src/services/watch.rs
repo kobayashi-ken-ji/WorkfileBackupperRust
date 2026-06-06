@@ -1,5 +1,4 @@
 use std::sync::{Arc, Mutex};
-use std::sync::mpsc::{Sender};
 use std::time::Duration;
 use futures::FutureExt;
 use notify_debouncer_full::{notify::*, DebounceEventResult, new_debouncer, Debouncer, RecommendedCache};
@@ -9,10 +8,11 @@ use std::convert::From;
 use crate::models::config::Config;
 use crate::models::eprint::ResutlErrPrint;
 use crate::models::notify::{
-    ConfigError, Notify, NotifyPackage, StartResult, StopResult, WaitResult, WatchInfo
+    ConfigError, Notify, StartResult, StopResult, WaitResult, WatchInfo
 };
 
 use crate::services::file_manager::{ActiveFileManager};
+use crate::services::utilities::lock_mutex;
 use crate::services::wait::wait_for_file_writing;
 use crate::services::backup;
 use crate::services::extensions::Extensions;
@@ -101,7 +101,7 @@ impl Watcher {
 
     /// 「開始」ボタンが押されたときの処理
     /// 戻り値： フォルダ監視の開始に成功したか
-    pub fn start(&self, config: &Config, tx: Sender<NotifyPackage>) -> std::result::Result<(), ()> {
+    pub fn start(&self, app: tauri::AppHandle, config: Config) -> std::result::Result<(), ()> {
         use StartResult::*;
 
         // バックアップの対象 (全てのファイル or 指定された拡張子リスト)
@@ -117,33 +117,30 @@ impl Watcher {
         let timer_tx = timer::run_timer(
             config.is_notify_unsaved,
             config.notify_interval,
-            tx.clone()
+            app.clone()
         );
 
         //---------------------------------------------------------------
+
+        let is_desktop_notify = config.is_notify;
         
         // 処理中ファイルのリストを排他ロックする
-        let mut lock_debouncer = match self.debouncer.lock() {
-            Ok(guard) => guard,
-            Err(poison_err) => {
-                println!("{}", Self::MUTEX_POISON_ERR);
-                poison_err.into_inner()
-            }
-        };
+        let mut lock_debouncer = lock_mutex(&self.debouncer);
 
         // 既に開始していたら終了 (二重起動防止)
         if lock_debouncer.is_some() {
-            AlreadyRunning.send(&tx);
+            AlreadyRunning.send(&app, is_desktop_notify);
             return Err(());
         }
 
         // move用にクローンする
         // Arcで包んであるためクローン可
         let file_manager_clone = self.file_manager.clone();
+        let app_clone = app.clone();
 
         // デバウンサ (2秒間イベントが途切れるのを待つ)
         // 毎回新しく生成
-        let tx_clone = tx.clone();
+        // let tx_clone = tx.clone();
         let watch_path_clone = watch_path.clone();
         let debouncer = new_debouncer(Duration::from_secs(2), None, move |result: DebounceEventResult| {
             match result {
@@ -168,18 +165,18 @@ impl Watcher {
 
                             // 対象拡張子かをチェック
                             else if !extensions.contains(&path) {
-                                WatchInfo::UnspecifiedExtension(path).send(&tx);
+                                WatchInfo::UnspecifiedExtension(path).send(&app, is_desktop_notify);
                                 continue;
                             }
 
                             // 変更検出を通知
-                            WatchInfo::ModificationDetected(path.clone()).send(&tx);
+                            WatchInfo::ModificationDetected(path.clone()).send(&app, is_desktop_notify);
 
                             // move用にコピー
-                            let tx = tx.clone();
                             let timer_tx = timer_tx.clone();
                             let destination_path = destination_path.clone();
                             let watch_path = watch_path.clone();
+                            let app = app.clone();
 
                             // ファイル変更終了待ち + バックアップ処理
                             file_manager_clone.execute(&path, move |path| {
@@ -198,7 +195,7 @@ impl Watcher {
                                                 destination_path
                                             };
                                             
-                                            backup::backup_file(&destination_path, &path).send(&tx);
+                                            backup::backup_file(&destination_path, &path).send(&app, is_desktop_notify);
 
                                             // 未保存時間をリセット
                                             // None → 通知OFFの状態
@@ -209,7 +206,7 @@ impl Watcher {
                                         }
 
                                         // 待機失敗時: メッセージを送信
-                                        _ => result.send(&tx),
+                                        _ => result.send(&app, is_desktop_notify),
                                     }
                                 }.boxed()
                             });
@@ -218,7 +215,7 @@ impl Watcher {
                 }
                 Err(errors) => {
                     eprintln!("{:#?}", errors);
-                    WatchInfo::DebounceError.send(&tx);
+                    WatchInfo::DebounceError.send(&app, is_desktop_notify);
                 }
             }
         });
@@ -227,7 +224,7 @@ impl Watcher {
             Ok(debouncer) => debouncer,
             Err(error) => {
                 eprintln!("{error}");
-                NewDebouncerFailed.send(&tx_clone);
+                NewDebouncerFailed.send(&app_clone, is_desktop_notify);
                 return Err(());
             }
         };
@@ -242,7 +239,7 @@ impl Watcher {
         // フォルダを監視対象に登録 (NonRecursive = サブフォルダを含まない)
         if let Err(error) = debouncer.watch(watch_path_clone, mode) {
             eprintln!("{error}");
-            DebounceStartFailed.send(&tx_clone);
+            DebounceStartFailed.send(&app_clone, is_desktop_notify);
             return Err(());
         };
 
@@ -250,7 +247,7 @@ impl Watcher {
         *lock_debouncer = Some(debouncer);
 
         // フォルダ監視開始の成功を通知
-        Success.send(&tx_clone);
+        Success.send(&app_clone, is_desktop_notify);
         Ok(())
     }
 

@@ -1,7 +1,6 @@
 use std::fs;
 use std::path::{PathBuf, Path};
 use chrono::{DateTime, Local};
-use crate::models::eprint::ResutlErrPrint;
 use crate::models::notify::BackupResult;
 
 //=============================================================================
@@ -31,30 +30,38 @@ pub fn backup_file(destination: &Path, path: &Path) -> BackupResult {
         }
     };
 
-    // 更新時 → ローカルタイムゾーン → YYYYMMDD_HHMMSS形式 へ変換
+    // 更新時 → ローカルタイムゾーン → [YYYYMMDD_HHMMSS]形式 へ変換
     let local_time: DateTime<Local> = DateTime::from(system_time);
-    let time_stamp = local_time.format("%Y%m%d_%H%M%S").to_string();
+    let time_stamp = local_time.format("[%Y%m%d_%H%M%S]").to_string();
 
-    // ◆◆◆◆◆◆◆◆◆◆◆◆◆◆◆◆◆◆◆◆◆
+    /*
+        ファイル名にドットが含まれる場合
+            1.00 というファイル名に set_extension() すると
+            00 を上書きしてしまうので、push()を使用する
+
+        Windowsの拡張パスの場合
+            PathBuf::push() すると拡張子のドットをフォルダ階層と認識してしまう
+            そのため、OsStringでファイル名を生成する
+     */
 
     // ファイル名を取得
     let Some(file_stem) = path.file_stem() else {
         return InvalidFileName(path.to_path_buf());
     };
 
-    // バックアップ用ファイル名を生成 (拡張子なし)
-    // 元ファイル名[YYYYMMDD_HHMMSS]
-    let new_file_name =
-        format!("{}[{}]", file_stem.to_string_lossy(), time_stamp);
+    // ファイル名 + [YYYYMMDD_HHMMSS]
+    let mut new_file_name = file_stem.to_os_string();
+    new_file_name.push(time_stamp);
+
+    // 拡張子がある場合は付与
+    if let Some(extention) = path.extension() {
+        new_file_name.push(".");
+        new_file_name.push(extention);
+    }
 
     // パスを生成 (ディレクトリ/新ファイル名)
     let mut new_path = PathBuf::from(destination);
     new_path.push(new_file_name);
-
-    // 拡張子がある場合は付与
-    if let Some(extention) = path.extension() {
-        new_path.set_extension(extention);
-    }
 
     // 同名のファイルが既に存在するか確認
     if new_path.exists() {

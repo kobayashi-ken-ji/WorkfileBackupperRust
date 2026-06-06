@@ -1,35 +1,66 @@
 use std::path::{Path, PathBuf};
-use std::sync::mpsc::Sender;
-
 use crate::models::eprint::ResutlErrPrint;
 
 //=============================================================================
 // UI/ログへの送信用の型
 //=============================================================================
 
-// 各関数の戻り値に実装するトレイト
+/// UIへの通知機能
+/// 各関数の戻り値型に実装する
 pub trait Notify {
-    const SEND_ERROR: &str = "メッセージ受信機がドロップされています";
 
-    /// UI/ログへのデータ型に変換
+    /// UIへのデータ送信用の型に変換
     fn to_dto(&self) -> NotifyDTO;
 
-    /// 自身のデータを送信
-    fn send(&self, tx: &Sender<NotifyPackage>) {
-        let package = NotifyPackage::Message(self.to_dto());
-        tx.send(package).eprint(Self::SEND_ERROR);
+
+    /// 自身のデータをUIへ送信
+    fn send(&self, app_handle: &tauri::AppHandle, is_desktop_notify: bool) {
+        use tauri::Emitter;
+        use tauri_plugin_notification::NotificationExt;
+
+        let dto = self.to_dto();
+
+        // デバッグ時のみコンソールへ表示
+        if cfg!(debug_assertions) {
+            println!("{}: {}", dto.title, dto.body);
+        }
+
+        // Debug → コンソール以外には表示しない
+        if dto.level == NotifyLevel::Debug { return; }
+
+        // TauriのイベントシステムでJSへ送信
+        // 第一引数: イベント名(自由)
+        // 第二引数: 送信するデータ
+        app_handle.emit("log-event", &dto).eprint("JSへのログ通知に失敗");
+
+        // デスクトップ通知を行うか判定
+        if  !is_desktop_notify ||
+            dto.level == NotifyLevel::Silent ||
+            dto.level == NotifyLevel::ErrorSilent {
+            return;
+        }
+
+        // move用コピー
+        let app_handle_clone = app_handle.clone();
+
+        // メインスレッドから通知しないと、Windowsは1度保留にしてしまう
+        app_handle.run_on_main_thread(move || {
+
+            // デスクトップ通知を送信
+            // ※ インストーラを使用しない場合、アプリ名がPowerShellになる
+            app_handle_clone.notification()
+                .builder()
+                .title(dto.title)
+                .body(dto.body)
+                .show()
+                .eprint("デスクトップ通知に失敗");
+
+        }).eprint("メインスレッドへの委託に失敗");
     }
 }
 
 
-/// UI/ログへの送信機に渡す型
-pub enum NotifyPackage {
-    Message(NotifyDTO),         // 通常の通知データ
-    Config { is_notify: bool }, // デスクトップ通知のON/OFF切替えを指示
-}
-
-
-/// UI/ログへの送信用の型
+/// UIへのデータ送信用の型
 #[derive(Debug, Clone, serde::Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct NotifyDTO {
@@ -48,7 +79,6 @@ pub enum NotifyLevel {
     Info,         // 緑文字: GUI表示 + デスクトップ通知
     Silent,       // 灰文字: GUI表示のみ (デスクトップ通知なし)
     Debug,        // コンソール表示のみ (開発用)
-    // Warn,
 }
 
 //=============================================================================
@@ -135,9 +165,6 @@ impl Notify for ConfigError {
 #[derive(Debug, Clone, serde::Serialize)]
 pub enum StartResult {
     Success,                    // フォルダ監視の開始に成功
-    // InvalidSourcePath,          // バックアップ元フォルダが無効
-    // InvalidDestinationPath,     // バックアップ先フォルダが無効
-    // PathConflict,               // バックアップ元/先 が同じ
     AlreadyRunning,             // 既に監視が開始している
     NewDebouncerFailed,         // デバウンサーの生成に失敗
     DebounceStartFailed,        // デバウンサーが監視開始に失敗
@@ -150,9 +177,6 @@ impl Notify for StartResult {
 
         let (level, title, body) = match self {
             Success                => (Info,  "バックアップを開始しました", "".into()),
-            // InvalidSourcePath      => (Error, "開始失敗", "バックアップ元フォルダが無効です".into()),
-            // InvalidDestinationPath => (Error, "開始失敗", "バックアップ先フォルダが無効です".into()),
-            // PathConflict           => (Error, "開始失敗", "バックアップ元とバックアップ先が同じです".into()),
             AlreadyRunning         => (Info,  "既にフォルダ監視中", "".into()),
             NewDebouncerFailed     => (Error, "開始失敗", "デバウンサーの生成に失敗しました".into()),
             DebounceStartFailed    => (Error, "開始失敗", "デバウンサーの開始に失敗しました".into()),
@@ -201,7 +225,7 @@ impl Notify for WaitResult {
         use WaitResult::*;
 
         let (level, title, body) = match self {
-            Success       => (Debug, "ファイルの書込み終了を検知", "".into()), // UIには送信されない想定
+            Success       => (Debug, "ファイルの書込み終了を検知", "".into()),
             Locked(path)  => (Error, "ファイルがロック中", get_filename(path)),
             Missing(path) => (Error, "ファイル消失または読取権限なし", get_filename(path)),
         };
@@ -251,6 +275,7 @@ impl Notify for BackupResult {
 /// 拡張接頭辞を外す (UI表示用)
 /// PathBuf::canonicalize() すると「\\?\」が付与されるため、表示用に削除する
 fn _clean_path(path: &Path) -> String {
+    
     // PathBuf → String 変換
     // ※UTF-8として不正な部分は「」に変換する
     let path_str = path.to_string_lossy();
