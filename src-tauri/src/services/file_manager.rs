@@ -5,6 +5,8 @@ use tokio::task::JoinSet;
 use tokio::runtime;
 use futures::future::BoxFuture;
 
+use crate::utilities::lock_mutex;
+
 //=============================================================================
 // RAII用ガード
 //=============================================================================
@@ -19,9 +21,8 @@ impl Drop for FileTaskGuard {
     fn drop(&mut self) {
 
         // 処理中リストをロックし、リストからファイルを削除
-        if let Ok(mut lock_files) = self.active_files.lock() {
-            lock_files.remove(&self.path);
-        }
+        let mut lock_files = lock_mutex(&self.active_files);
+        lock_files.remove(&self.path);
     }
 }
 
@@ -45,10 +46,6 @@ pub struct ActiveFileManager  {
 }
 
 impl ActiveFileManager  {
-
-    /// 別スレッドがパニックするとロックが汚染される。中の値を強制取得して続行。
-    const MUTEX_POISON_ERR: &str
-        = "ミューテックスのポイズンエラーが発生。強制取得して続行します。";
 
     /// コンストラクタ
     pub fn new(handle: runtime::Handle) -> Self {
@@ -78,15 +75,9 @@ impl ActiveFileManager  {
         F: FnOnce(PathBuf) -> BoxFuture<'static, ()> + Send + 'static,
     {
         let files = self.active_files.clone();
-
+        
         // 処理中ファイルのリストを排他ロックする
-        let mut lock_files = match files.lock() {
-            Ok(guard) => guard,
-            Err(poison_err) => {
-                println!("{}", Self::MUTEX_POISON_ERR);
-                poison_err.into_inner()
-            }
-        };
+        let mut lock_files = lock_mutex(&files);
 
         // ファイルが既に処理中の場合はスキップ
         if lock_files.contains(path) { return; }

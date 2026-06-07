@@ -1,6 +1,6 @@
 use std::sync::Mutex;
 use crate::models::config::Config;
-use crate::services::utilities::lock_mutex;
+use crate::utilities::lock_mutex;
 
 
 /// TauriのStateに設定値を登録するための構造体

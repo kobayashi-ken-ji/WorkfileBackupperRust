@@ -3,6 +3,8 @@ use std::path::PathBuf;
 use tauri::AppHandle;
 use tauri::Manager;
 
+use crate::models::notify::ConfigError;
+
 
 /// ユーザー設定
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]  // JSONとして渡すため、Serializeを付与
@@ -25,6 +27,7 @@ pub struct Config {
     pub is_shown: bool,             // アプリ起動時にウィンドウを表示する
     pub auto_start: bool,           // アプリ起動時に自動的に開始する
 }
+
 
 // デフォルト値を定義
 impl Default for Config {
@@ -50,6 +53,7 @@ impl Default for Config {
         }
     }
 }
+
 
 impl Config {
 
@@ -90,7 +94,61 @@ impl Config {
         
         // ファイルを読込、JSON→Configへ変換
         fs::read_to_string(path)
-            .and_then(|content| serde_json::from_str(&content).map_err(|e| e.into()))
+            .and_then(|content| serde_json::from_str(&content)
+            .map_err(|e| e.into()))
+    }
+
+
+    /// 設定値が有効かをチェック
+    /// 
+    /// フォルダ監視の開始前に実行する必要がある
+    /// パスフィールドを正規化し上書きするため、mut が必要
+    pub fn validate(&mut self) -> Result<(), ConfigError> {
+        use ConfigError::*;
+
+        // 監視するフォルダ
+        // canonicalize: 正規化 (絶対パス化 + 余計な/や.を削除)
+        self.source_path = match self.source_path.canonicalize() {
+            Ok(path) => {
+                if path.is_dir() { path }
+                else { return Err(InvalidSourcePath); }
+            }
+            Err(error) => {
+                eprintln!("{error}");
+                return Err(InvalidSourcePath);
+            }
+        };
+        
+        // バックアップ先フォルダ
+        self.destination_path = match self.destination_path.canonicalize() {
+            Ok(path) => {
+                if path.is_dir() { path }
+                else { return Err(InvalidDestinationPath); }
+            }
+            Err(error) => {
+                eprintln!("{error}");
+                return Err(InvalidDestinationPath);
+            }
+        };
+
+        // バックアップ元とバックアップ先が同じ
+        if self.source_path == self.destination_path {
+            return Err(PathConflict);
+        }
+
+        // バックアップするファイル
+        if !self.all_files_enabled &&     // 「全てのファイル」がfalse
+            self.extensions.len() < 1 {   // 拡張子がひとつも登録されていない
+            return Err(NoExtension);
+        }
+
+        // 未保存の通知
+        if self.is_notify_unsaved &&      // 通知が有効
+            self.notify_interval < 1 {    // 1分以下
+            return Err(InvalidNotifyInterval);
+        }
+
+        Ok(())
     }
 }
 

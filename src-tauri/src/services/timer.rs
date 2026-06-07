@@ -6,30 +6,23 @@ use crate::models::notify::{Notify, TimerInfo};
 
 /// 「指定時間 経過した時」に通知する
 /// 
-/// ファイル未保存時間の計測用。
+/// ファイル未保存時間の通知用
 /// スレッドを作り、経過時間を計測する。
 /// 
-/// 指定分 経過時に notify_tx で経過時間を送信する。
+/// 指定時間ぶん経過時に、UIへ経過時間を送信する。
 /// 戻り値の Sender がドロップされるまで繰り返される。
 /// 
 /// Senderで送信を行うと、経過時間を0にリセットする。
 /// リセットされるまで経過時間は累積する。
 /// 
 /// # 引数
-/// * `enabled`      - 処理のON/OFF。falseの場合は何もせず、None を返す
 /// * `timeout_mins` - 通知するまでの時間 (単位：分)
-/// * `app`          - TimerInfoをsendするための、アプリハンドル
+/// * `app`          - 送信に必要なアプリハンドル
 /// 
 /// # 戻り値
 ///     経過時間をリセットするための送信機 (ファイル保存時に使用)
-///     enabled が false の場合は None を返す
 /// 
-pub fn run_timer
-    (enabled: bool, timeout_mins: u64, app: tauri::AppHandle)
-    -> Option<Sender<()>> {
-
-    // 無効な場合 → Senderを生成しないので、代わりにNoneを返す
-    if !enabled { return None; }
+pub fn run_timer(timeout_mins: u64, app: tauri::AppHandle) -> Sender<()> {
     
     // Tokio版チャンネルを使用
     // バッファ = 送信側処理をブロックせずに済む数
@@ -54,7 +47,7 @@ pub fn run_timer
 
                     // 経過時間を、UI用の受信機へ送る
                     let minutes = timeout_mins * timeout_count;
-                    TimerInfo::Elapsed { minutes }.send(&app, enabled);
+                    TimerInfo::Elapsed { minutes }.send(&app, true);
                 }
                 
                 // 受信 (ファイルがバックアップされた)
@@ -72,7 +65,7 @@ pub fn run_timer
         println!("時間計測を終了");
     });
 
-    Some(tx)
+    tx
 }
 
 // Tauriランタイムで動作させる
@@ -147,6 +140,8 @@ pub fn run_timer
 //     fn test() {
         
 //         // テスト時はTauri側ランタイムが無いため、自動で生成してくれる
-//         tauri::async_runtime::block_on(run());
+//         tauri::async_runtime::block_on(async {
+//             run_timer(10, app);
+//         });
 //     }
 // }

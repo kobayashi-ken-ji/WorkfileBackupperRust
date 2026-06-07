@@ -1,11 +1,115 @@
 use std::path::{Path, PathBuf};
-use crate::models::eprint::ResutlErrPrint;
+use crate::utilities::ResutlErrPrint;
+
+//=============================================================================
+
+// mod notification {
+//     use super::*;
+
+//     //=============================================================================
+//     // 送信用データ型
+//     //=============================================================================
+
+//     /// UIへのデータ送信用の型
+//     #[derive(Debug, Clone, serde::Serialize)]
+//     #[serde(rename_all = "camelCase")]
+//     pub struct MessageDTO {
+//         pub level: NotifyLevel,  // ユーザーへの通知レベル
+//         pub title: &'static str, // デスクトップ通知のタイトル部分 (発生イベントの説明)
+//         pub body: String,        // デスクトップ通知のボディ部分 (ファイル名など)
+//     }
+    
+
+//     /// DTOへの変換機能
+//     /// 各関数の戻り値型に実装する
+//     pub trait Message {
+//         /// UIへの送信用の型に変換
+//         fn to_dto(&self) -> MessageDTO;
+//     }
+
+//     //=============================================================================
+//     // 送信機
+//     //=============================================================================
+
+//     /// 送信機能
+//     pub trait Sender {
+
+//         /// UIへ情報を送信する
+//         fn send(&self, message: impl Message);
+//     }
+
+
+//     /// テスト用送信機 (AppHandleが不要)
+//     pub struct MockSender {}
+//     impl Sender for MockSender {
+//         fn send(&self, message: impl Message) {
+
+//             let dto = message.to_dto();
+//             println!("{}: {}", dto.title, dto.body);
+//         }
+//     }
+
+
+//     /// UIへの送信機
+//     #[derive(Debug, Clone)]
+//     pub struct MessageSender {
+//         app: tauri::AppHandle,
+//         is_desktop_notify: bool,
+//     }
+
+//     impl Sender for MessageSender {
+//         fn send(&self, message: impl Message) {
+
+//             use tauri::Emitter;
+//             use tauri_plugin_notification::NotificationExt;
+
+//             let dto = message.to_dto();
+
+//             // デバッグ時のみコンソールへ表示
+//             if cfg!(debug_assertions) {
+//                 println!("{}: {}", dto.title, dto.body);
+//             }
+
+//             // Debug → コンソール以外には表示しない
+//             if dto.level == NotifyLevel::Debug { return; }
+
+//             // TauriのイベントシステムでJSへ送信
+//             // 第一引数: イベント名(自由)
+//             // 第二引数: 送信するデータ
+//             self.app.emit("log-event", &dto).eprint("JSへのログ通知に失敗");
+
+//             // デスクトップ通知を行うか判定
+//             if  !self.is_desktop_notify ||
+//                 dto.level == NotifyLevel::Silent ||
+//                 dto.level == NotifyLevel::ErrorSilent {
+//                 return;
+//             }
+
+//             // move用コピー
+//             let app_handle_clone = self.app.clone();
+
+//             // メインスレッドから通知しないと、Windowsは1度保留にしてしまう
+//             self.app.run_on_main_thread(move || {
+
+//                 // デスクトップ通知を送信
+//                 // ※ インストーラを使用しない場合、アプリ名がPowerShellになる
+//                 app_handle_clone.notification()
+//                     .builder()
+//                     .title(dto.title)
+//                     .body(dto.body)
+//                     .show()
+//                     .eprint("デスクトップ通知に失敗");
+
+//             }).eprint("メインスレッドへの委託に失敗");
+//         }
+//     }
+// }
 
 //=============================================================================
 // UI/ログへの送信用の型
 //=============================================================================
 
-/// UIへの通知機能
+/// 通知UIへの送信機能
 /// 各関数の戻り値型に実装する
 pub trait Notify {
 
@@ -106,32 +210,8 @@ impl Notify for TimerInfo {
 }
 
 //=============================================================================
-// watch.rs のイベント情報型 / 戻り値型
+// config.rs の戻り値型
 //=============================================================================
-
-/// フォルダ監視中のイベント情報 (UI/ログへの送信用)
-#[derive(Debug, Clone, serde::Serialize)]
-pub enum WatchInfo {
-    ModificationDetected(PathBuf), // ファイル変更の検出
-    UnspecifiedExtension(PathBuf), // 指定外の拡張子のためスキップ
-    DebounceError,                 // DebounceEventResult のエラー
-}
-
-impl Notify for WatchInfo {
-    fn to_dto(&self) -> NotifyDTO {
-        use NotifyLevel::*;
-        use WatchInfo::*;
-
-        let (level, title, body) = match self {
-            ModificationDetected(path) => (Debug, "変更を検出", get_filename(path)),
-            UnspecifiedExtension(path) => (Debug, "指定外の拡張子をスキップ", get_filename(path)),
-            DebounceError              => (Error, "フォルダ監視中のエラー", "デバウンスエラーが発生".into()),
-        };
-
-        NotifyDTO { level, title, body }
-    }
-}
-
 
 /// Config型のバリデーションチェックの結果値
 #[derive(Debug, Clone, serde::Serialize)]
@@ -154,6 +234,33 @@ impl Notify for ConfigError {
             PathConflict           => (ErrorSilent, "開始失敗", "バックアップ元とバックアップ先が同じです".into()),
             NoExtension            => (ErrorSilent, "開始失敗", "拡張子を一つ以上設定してください".into()),
             InvalidNotifyInterval  => (ErrorSilent, "開始失敗", "未保存通知は1分以上に設定してください".into()),
+        };
+
+        NotifyDTO { level, title, body }
+    }
+}
+
+//=============================================================================
+// watch.rs のイベント情報型 / 戻り値型
+//=============================================================================
+
+/// フォルダ監視中のイベント情報 (UI/ログへの送信用)
+#[derive(Debug, Clone, serde::Serialize)]
+pub enum WatchInfo {
+    ModificationDetected(PathBuf), // ファイル変更の検出
+    NotTarget(PathBuf),            // バックアップの対象外のためスキップ
+    DebounceError,                 // DebounceEventResult のエラー
+}
+
+impl Notify for WatchInfo {
+    fn to_dto(&self) -> NotifyDTO {
+        use NotifyLevel::*;
+        use WatchInfo::*;
+
+        let (level, title, body) = match self {
+            ModificationDetected(path) => (Debug, "変更を検出", get_filename(path)),
+            NotTarget(path)            => (Debug, "対象外のためスキップ", get_filename(path)),
+            DebounceError              => (Error, "フォルダ監視中のエラー", "デバウンスエラーが発生".into()),
         };
 
         NotifyDTO { level, title, body }

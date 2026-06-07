@@ -1,3 +1,5 @@
+//! JavaScript から呼び出される処理を定義
+
 use tauri::{AppHandle, Manager, State, Window};
 use tauri_plugin_dialog::{DialogExt, MessageDialogButtons, MessageDialogKind};
 
@@ -6,9 +8,9 @@ use crate::models::notify::Notify;
 use crate::models::state::ConfigState;
 use crate::services::{watch::Watcher};
 
-//=============================================================================
 
-/// 設定ファイルを読込み、フロントへ送る
+/// HTML生成直後の処理
+/// 設定ファイルを読込み、JSへ返す
 #[tauri::command]
 pub fn get_config(
     app: AppHandle, window: Window, config_state: State<'_, ConfigState>) -> Config {
@@ -33,11 +35,6 @@ pub fn get_config(
     config
 }
 
-//=============================================================================
-// 画面から呼び出される関数
-//=============================================================================
-
-// 引数に tauri::AppHandle を追加すると、自動で渡してくれる
 
 /// 「開始」ボタンの処理
 /// 戻り値 - Ok:開始した, Err:開始できなかった
@@ -54,36 +51,31 @@ pub async fn start_watching(
     if let Err(error) = config.save(&app) {
         eprintln!("設定ファイルの保存に失敗: {}", error);
 
-        // ※通知処理を追記する
+        // ※UIへ通知が必要な場合はここに追記
     }
 
     let is_notify = config.is_notify;
 
-    // 設定のバリデーションチェック
-    config = match watcher.validate_config(config) {
-        Ok(config) => config,
-        Err(error) => {
+    // 設定値をチェック
+    if let Err(error) = config.validate() {
 
-            // UI/ログ用の受信機へ送信
-            error.send(&app, is_notify);
-            
-            let message = format!("開始できませんでした\n{}", error.to_dto().body);
+        // UIへエラーを送信
+        error.send(&app, is_notify);
 
-            let main_window = app.get_webview_window("main")
-                .expect("メインウィンドウの取得に失敗");
+        let main_window = app.get_webview_window("main")
+            .expect("メインウィンドウの取得に失敗");
 
-            // モーダルダイアログを表示
-            app.dialog()
-                .message(message)
-                // .title("サーバーエラー")
-                .kind(MessageDialogKind::Info)
-                .buttons(MessageDialogButtons::Ok)
-                .parent(&main_window)   // メインウィンドウをブロック
-                .blocking_show();
+        // モーダルダイアログを表示
+        app.dialog()
+            .message(format!("開始できませんでした\n{}", error.to_dto().body))
+            // .title("サーバーエラー")
+            .kind(MessageDialogKind::Info)
+            .buttons(MessageDialogButtons::Ok)
+            .parent(&main_window)   // メインウィンドウをブロック
+            .blocking_show();
 
-            return Err(());
-        }
-    };
+        return Err(());
+    }
 
     // Stateに設定値を上書き
     config_state.write(config.clone());
@@ -96,10 +88,11 @@ pub async fn start_watching(
 
 /// 「終了」ボタンの処理
 #[tauri::command]
-pub async fn stop_watching(app: tauri::AppHandle, config_state: State<'_, ConfigState>,
+pub async fn stop_watching(
+    app: tauri::AppHandle, config_state: State<'_, ConfigState>,
     watcher: State<'_, Watcher>) -> Result<(), ()> {
 
-    // 終了処理を呼出し
+    // 監視スレッドを停止
     let result = watcher.stop().await;
 
     // Stateから設定値を取得
