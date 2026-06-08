@@ -2,7 +2,7 @@
 /* 変数定義 */
 :root {
     --info-color: #2e7d32;
-    --silent-color: #666666;
+    --remark-color: #888;
     --error-color: #d32f2f;
     --dark-color: #e7e7e7;
     --folder-select-height: 28px;
@@ -321,9 +321,9 @@ button:disabled {
     margin: 2px 0px;
     line-height: 1.4;
 }
-.log-item.info   { color: var(--info-color); }      /* 成功：緑*/
-.log-item.silent { color: var(--silent-color); }    /* 軽度の情報：灰 */
-.log-item.error  { color: var(--error-color); }     /* エラー：赤*/
+.log-item.error  { color: var(--error-color); }     /* 赤: エラー*/
+.log-item.info   { color: var(--info-color); }      /* 緑: 成功*/
+.log-item.remark { color: var(--remark-color); }    /* 灰: 軽度の情報 */
 
 /* ログ時刻 */
 .log-time {
@@ -351,7 +351,7 @@ button:disabled {
 }
 /* 
 .log-title.log-info   { background-color: var(--info-color); }
-.log-title.log-silent { background-color: var(--silent-color); }
+.log-title.log-remark { background-color: var(--remark-color); }
 .log-title.log-error  { background-color: var(--error-color); }
  */
 

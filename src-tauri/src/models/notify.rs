@@ -1,161 +1,188 @@
+//! 通知関連のデータと機能を定義 (JS・デスクトップ・標準出力へ送信)
+
+use std::sync::Mutex;
+use std::sync::Arc;
 use std::path::{Path, PathBuf};
 use crate::utilities::ResutlErrPrint;
+use crate::utilities::lock_mutex;
 
 //=============================================================================
+// 通知方法の選択肢
+//=============================================================================
 
-// mod notification {
-//     use super::*;
-
-//     //=============================================================================
-//     // 送信用データ型
-//     //=============================================================================
-
-//     /// UIへのデータ送信用の型
-//     #[derive(Debug, Clone, serde::Serialize)]
-//     #[serde(rename_all = "camelCase")]
-//     pub struct MessageDTO {
-//         pub level: NotifyLevel,  // ユーザーへの通知レベル
-//         pub title: &'static str, // デスクトップ通知のタイトル部分 (発生イベントの説明)
-//         pub body: String,        // デスクトップ通知のボディ部分 (ファイル名など)
-//     }
-    
-
-//     /// DTOへの変換機能
-//     /// 各関数の戻り値型に実装する
-//     pub trait Message {
-//         /// UIへの送信用の型に変換
-//         fn to_dto(&self) -> MessageDTO;
-//     }
-
-//     //=============================================================================
-//     // 送信機
-//     //=============================================================================
-
-//     /// 送信機能
-//     pub trait Sender {
-
-//         /// UIへ情報を送信する
-//         fn send(&self, message: impl Message);
-//     }
+/// 通知範囲
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize)]
+#[serde(rename_all = "camelCase")] // JSでは「info, error, silent」になる
+pub enum NotifyRange {
+    Dialog,     // コンソール + GUIログ + ダイアログ(確実に通知)
+    Desktop,    // コンソール + GUIログ + デスクトップ通知(非通知が可能)
+    Log,        // コンソール + GUIログ
+    Console,    // コンソール (開発用)
+    None,       // 通知が不要になったもの
+}
 
 
-//     /// テスト用送信機 (AppHandleが不要)
-//     pub struct MockSender {}
-//     impl Sender for MockSender {
-//         fn send(&self, message: impl Message) {
+/// 通知レベル (GUIログへ表示する文字色)
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize)]
+#[serde(rename_all = "camelCase")] // JSでは「info, error, silent」になる
+pub enum NotifyLevel {
+    Error,      // 赤: エラー
+    Info,       // 緑: 主要なイベント
+    Remark,     // 灰: 微細な情報 (処理スキップなど)
+}
 
-//             let dto = message.to_dto();
-//             println!("{}: {}", dto.title, dto.body);
-//         }
-//     }
+//=============================================================================
+// 送信用データ型
+//=============================================================================
+
+/// UIへの送信用のデータ型
+#[derive(Debug, Clone, PartialEq, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct NotifyPayload {
+    pub level: NotifyLevel,   // ユーザーへの通知レベル
+    pub range: NotifyRange,   // 通知範囲 (コンソール、ログ、デスクトップ通知、ダイアログ)
+    pub title: &'static str,  // デスクトップ通知のタイトル部分 (発生イベントの説明)
+    pub body: String,         // デスクトップ通知のボディ部分 (ファイル名など)
+}
 
 
-//     /// UIへの送信機
-//     #[derive(Debug, Clone)]
-//     pub struct MessageSender {
-//         app: tauri::AppHandle,
-//         is_desktop_notify: bool,
-//     }
+/// 送信用データ型への変換機能
+/// ※これを実装した型は Notifier で送信できる
+pub trait ToNotify {
 
-//     impl Sender for MessageSender {
-//         fn send(&self, message: impl Message) {
+    /// UIへの送信用の型に変換
+    fn to_payload(&self) -> NotifyPayload;
+}
 
-//             use tauri::Emitter;
-//             use tauri_plugin_notification::NotificationExt;
+//=============================================================================
+// 送信機 (トレイト)
+//=============================================================================
 
-//             let dto = message.to_dto();
 
-//             // デバッグ時のみコンソールへ表示
-//             if cfg!(debug_assertions) {
-//                 println!("{}: {}", dto.title, dto.body);
-//             }
+/// 送信機能
+pub trait Notifier: Send + Sync + 'static + Clone {
 
-//             // Debug → コンソール以外には表示しない
-//             if dto.level == NotifyLevel::Debug { return; }
+    /// UIへ情報を送信する
+    fn notify(&self, event: &impl ToNotify);
+}
 
-//             // TauriのイベントシステムでJSへ送信
-//             // 第一引数: イベント名(自由)
-//             // 第二引数: 送信するデータ
-//             self.app.emit("log-event", &dto).eprint("JSへのログ通知に失敗");
+//=============================================================================
+// 送信機 (テスト用実装)
+//=============================================================================
 
-//             // デスクトップ通知を行うか判定
-//             if  !self.is_desktop_notify ||
-//                 dto.level == NotifyLevel::Silent ||
-//                 dto.level == NotifyLevel::ErrorSilent {
-//                 return;
-//             }
+/// テスト用送信機 (AppHandleが不要)
+#[derive(Debug, Clone)]
+pub struct MockNotifier {
+    pub log: Arc<Mutex< Vec<NotifyPayload> >>,
+}
 
-//             // move用コピー
-//             let app_handle_clone = self.app.clone();
+impl MockNotifier {
+    pub fn new() -> Self {
+        Self { log: Arc::new(Mutex::new(Vec::new())) }
+    }
+}
 
-//             // メインスレッドから通知しないと、Windowsは1度保留にしてしまう
-//             self.app.run_on_main_thread(move || {
+impl Notifier for MockNotifier {
 
-//                 // デスクトップ通知を送信
-//                 // ※ インストーラを使用しない場合、アプリ名がPowerShellになる
-//                 app_handle_clone.notification()
-//                     .builder()
-//                     .title(dto.title)
-//                     .body(dto.body)
-//                     .show()
-//                     .eprint("デスクトップ通知に失敗");
+    /// 送信用型に変換し、Vecフィールドに追加する
+    fn notify(&self, event: &impl ToNotify) {
+        let mut log = lock_mutex(&self.log);
+        log.push(event.to_payload());
+    }
+}
 
-//             }).eprint("メインスレッドへの委託に失敗");
-//         }
+// /// テスト用送信機 (AppHandleが不要)
+// #[derive(Debug, Clone)]
+// pub struct MockNotifier {}
+// impl Notifier for MockNotifier {
+
+//     fn notify(&self, event: &impl ToNotify) {
+
+//         let payload = event.to_payload();
+//         println!("{}: {}", payload.title, payload.body);
 //     }
 // }
 
 //=============================================================================
-// UI/ログへの送信用の型
+// 送信機 (実装)
 //=============================================================================
 
-/// 通知UIへの送信機能
-/// 各関数の戻り値型に実装する
-pub trait Notify {
+/// UIへの送信機
+#[derive(Debug, Clone)]
+pub struct AppNotifier {
+    app: tauri::AppHandle,      // JSへの送信に必要
+    is_desktop_notify: bool,    // デスクトップ通知を行うか
+}
 
-    /// UIへのデータ送信用の型に変換
-    fn to_dto(&self) -> NotifyDTO;
-
-
-    /// 自身のデータをUIへ送信
-    fn send(&self, app_handle: &tauri::AppHandle, is_desktop_notify: bool) {
-        use tauri::Emitter;
-        use tauri_plugin_notification::NotificationExt;
-
-        let dto = self.to_dto();
-
-        // デバッグ時のみコンソールへ表示
-        if cfg!(debug_assertions) {
-            println!("{}: {}", dto.title, dto.body);
+impl AppNotifier {
+    
+    pub fn new(app: &tauri::AppHandle, is_desktop_notify: bool) -> Self {
+        Self {
+            app: app.clone(),
+            is_desktop_notify,
         }
+    }
 
-        // Debug → コンソール以外には表示しない
-        if dto.level == NotifyLevel::Debug { return; }
+    /// デバッグ時のみコンソールへ表示
+    fn consle(&self, payload: &NotifyPayload) {
+        if cfg!(debug_assertions) {
+            println!("{}: {}", payload.title, payload.body);
+        }
+    }
+
+
+    /// ログウィンドウ(JS側) へ送信
+    fn log(&self, payload: &NotifyPayload) {
+        use tauri::Emitter;
 
         // TauriのイベントシステムでJSへ送信
         // 第一引数: イベント名(自由)
         // 第二引数: 送信するデータ
-        app_handle.emit("log-event", &dto).eprint("JSへのログ通知に失敗");
+        self.app.emit("log-event", payload).eprint("JSへのログ通知に失敗");
+    }
 
-        // デスクトップ通知を行うか判定
-        if  !is_desktop_notify ||
-            dto.level == NotifyLevel::Silent ||
-            dto.level == NotifyLevel::ErrorSilent {
-            return;
-        }
+
+    /// モーダルダイアログを表示
+    fn dialog(&self, payload: &NotifyPayload) {
+        use tauri::Manager;
+        use tauri_plugin_dialog::{DialogExt, MessageDialogButtons, MessageDialogKind};
+
+        // ダイアログ用メッセージを作成
+        let message = format!("{}:\n{}", payload.title, payload.body);
+
+        // メインウィンドウを取得
+        let main_window = self.app.get_webview_window("main")
+            .expect("メインウィンドウの取得に失敗");
+
+        // モーダルダイアログを表示
+        self.app.dialog()
+            .message(message)
+            // .title("タイトル")   // アプリ名を表示するため、指定しない
+            .kind(MessageDialogKind::Info)
+            .buttons(MessageDialogButtons::Ok)
+            .parent(&main_window)   // メインウィンドウをブロック
+            .blocking_show();
+    }
+
+
+    /// デスクトップ通知をする
+    /// ※インストーラを使用しない場合、アプリ名がPowerShellになる
+    fn desktop(&self, payload: NotifyPayload) {
+        use tauri_plugin_notification::NotificationExt;
+
+        if !self.is_desktop_notify { return; }
 
         // move用コピー
-        let app_handle_clone = app_handle.clone();
+        let app = self.app.clone();
 
         // メインスレッドから通知しないと、Windowsは1度保留にしてしまう
-        app_handle.run_on_main_thread(move || {
+        self.app.run_on_main_thread(move || {
 
             // デスクトップ通知を送信
-            // ※ インストーラを使用しない場合、アプリ名がPowerShellになる
-            app_handle_clone.notification()
+            app.notification()
                 .builder()
-                .title(dto.title)
-                .body(dto.body)
+                .title(payload.title)
+                .body(payload.body)
                 .show()
                 .eprint("デスクトップ通知に失敗");
 
@@ -163,32 +190,48 @@ pub trait Notify {
     }
 }
 
+impl Notifier for AppNotifier {
+    fn notify(&self, event: &impl ToNotify) {
 
-/// UIへのデータ送信用の型
-#[derive(Debug, Clone, serde::Serialize)]
-#[serde(rename_all = "camelCase")]
-pub struct NotifyDTO {
-    pub level: NotifyLevel,  // ユーザーへの通知レベル
-    pub title: &'static str, // デスクトップ通知のタイトル部分 (発生イベントの説明)
-    pub body: String,        // デスクトップ通知のボディ部分 (ファイル名など)
-}
+        // 送信用のデータ型に変換
+        let payload = event.to_payload();
 
+        // 設定された範囲へ通知
+        use NotifyRange::*;
+        match payload.range {
 
-/// ユーザーへの通知レベル
-#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize)]
-#[serde(rename_all = "camelCase")] // JSでは「info, error, silent」になる
-pub enum NotifyLevel {
-    ErrorSilent,  // 赤文字: GUI表示のみ (デスクトップ通知なし / 個別にダイアログ表示などを行う)
-    Error,        // 赤文字: GUI表示 + デスクトップ通知
-    Info,         // 緑文字: GUI表示 + デスクトップ通知
-    Silent,       // 灰文字: GUI表示のみ (デスクトップ通知なし)
-    Debug,        // コンソール表示のみ (開発用)
+            Dialog => {
+                self.consle(&payload);
+                self.log(&payload);
+                self.dialog(&payload);
+            }
+
+            Desktop => {
+                self.consle(&payload);
+                self.log(&payload);
+                self.desktop(payload);
+            }
+
+            Log => {
+                self.consle(&payload);
+                self.log(&payload);
+            }
+
+            Console => {
+                self.consle(&payload);
+            }
+
+            None => {}
+        }
+    }
 }
 
 //=============================================================================
 // timer.rs の通知型
 //=============================================================================
 
+/// 「ファイル未保存時間」計測時の情報
+#[derive(Debug, Clone, serde::Serialize)]
 pub enum TimerInfo {
     Elapsed { minutes: u64 },   // 未保存時間が指定分経過した
     // Reset,                   // バックアップされ、未保存時間をリセットした
@@ -196,16 +239,17 @@ pub enum TimerInfo {
     // Stop,                    // 計測スレッドが終了
 }
 
-impl Notify for TimerInfo {
-    fn to_dto(&self) -> NotifyDTO {
+impl ToNotify for TimerInfo {
+    fn to_payload(&self) -> NotifyPayload {
         use NotifyLevel::*;
+        use NotifyRange::*;
         use TimerInfo::*;
 
-        let (level, title, body) = match self {
-            Elapsed{minutes} => (Info, "ファイル未保存期間", format!("{minutes}分経過")),
+        let (level, range, title, body) = match self {
+            Elapsed{minutes} => (Info, Desktop, "ファイル未保存期間", format!("{minutes}分経過")),
         };
 
-        NotifyDTO { level, title, body }
+        NotifyPayload { level, range, title, body }
     }
 }
 
@@ -223,20 +267,23 @@ pub enum ConfigError {
     InvalidNotifyInterval,      // ファイルの未保存を通知の時間設定が無効
 }
 
-impl Notify for ConfigError {
-    fn to_dto(&self) -> NotifyDTO {
-        use NotifyLevel::*;
+impl ToNotify for ConfigError {
+    fn to_payload(&self) -> NotifyPayload {
         use ConfigError::*;
 
-        let (level, title, body) = match self {
-            InvalidSourcePath      => (ErrorSilent, "開始失敗", "バックアップ元フォルダが無効です".into()),
-            InvalidDestinationPath => (ErrorSilent, "開始失敗", "バックアップ先フォルダが無効です".into()),
-            PathConflict           => (ErrorSilent, "開始失敗", "バックアップ元とバックアップ先が同じです".into()),
-            NoExtension            => (ErrorSilent, "開始失敗", "拡張子を一つ以上設定してください".into()),
-            InvalidNotifyInterval  => (ErrorSilent, "開始失敗", "未保存通知は1分以上に設定してください".into()),
+        let level = NotifyLevel::Error;
+        let range = NotifyRange::Dialog;    // ダイアログで確実に通知
+        let title = "開始失敗";
+
+        let body = match self {
+            InvalidSourcePath      => "バックアップ元フォルダが無効です".into(),
+            InvalidDestinationPath => "バックアップ先フォルダが無効です".into(),
+            PathConflict           => "バックアップ元とバックアップ先が同じです".into(),
+            NoExtension            => "拡張子を一つ以上設定してください".into(),
+            InvalidNotifyInterval  => "未保存通知は1分以上に設定してください".into(),
         };
 
-        NotifyDTO { level, title, body }
+        NotifyPayload { level, range, title, body }
     }
 }
 
@@ -247,23 +294,24 @@ impl Notify for ConfigError {
 /// フォルダ監視中のイベント情報 (UI/ログへの送信用)
 #[derive(Debug, Clone, serde::Serialize)]
 pub enum WatchInfo {
-    ModificationDetected(PathBuf), // ファイル変更の検出
-    NotTarget(PathBuf),            // バックアップの対象外のためスキップ
-    DebounceError,                 // DebounceEventResult のエラー
+    Detected(PathBuf),      // ファイル変更の検出
+    NotTarget(PathBuf),     // バックアップの対象外のためスキップ
+    DebounceError,          // DebounceEventResult のエラー
 }
 
-impl Notify for WatchInfo {
-    fn to_dto(&self) -> NotifyDTO {
+impl ToNotify for WatchInfo {
+    fn to_payload(&self) -> NotifyPayload {
         use NotifyLevel::*;
+        use NotifyRange::*;
         use WatchInfo::*;
 
-        let (level, title, body) = match self {
-            ModificationDetected(path) => (Debug, "変更を検出", get_filename(path)),
-            NotTarget(path)            => (Debug, "対象外のためスキップ", get_filename(path)),
-            DebounceError              => (Error, "フォルダ監視中のエラー", "デバウンスエラーが発生".into()),
+        let (level, range, title, body) = match self {
+            Detected(path)  => (Remark, Console, "変更を検出", get_filename(path)),
+            NotTarget(path) => (Remark, Log,     "対象外のためスキップ", get_filename(path)),
+            DebounceError   => (Error,  Desktop, "フォルダ監視中のエラー", "デバウンスエラーが発生".into()),
         };
 
-        NotifyDTO { level, title, body }
+        NotifyPayload { level, range, title, body }
     }
 }
 
@@ -271,27 +319,29 @@ impl Notify for WatchInfo {
 /// フォルダ監視の開始処理の結果 (UI/ログへの送信用)
 #[derive(Debug, Clone, serde::Serialize)]
 pub enum StartResult {
-    Success,                    // フォルダ監視の開始に成功
-    AlreadyRunning,             // 既に監視が開始している
-    NewDebouncerFailed,         // デバウンサーの生成に失敗
-    DebounceStartFailed,        // デバウンサーが監視開始に失敗
+    Success,                // フォルダ監視の開始に成功
+    AlreadyRunning,         // 既に監視が開始している
+    NewDebouncerFailed,     // デバウンサーの生成に失敗
+    DebounceStartFailed,    // デバウンサーが監視開始に失敗
 }
 
-impl Notify for StartResult {
-    fn to_dto(&self) -> NotifyDTO {
+impl ToNotify for StartResult {
+    fn to_payload(&self) -> NotifyPayload {
         use NotifyLevel::*;
         use StartResult::*;
 
+        let range = NotifyRange::Desktop;
         let (level, title, body) = match self {
-            Success                => (Info,  "バックアップを開始しました", "".into()),
-            AlreadyRunning         => (Info,  "既にフォルダ監視中", "".into()),
-            NewDebouncerFailed     => (Error, "開始失敗", "デバウンサーの生成に失敗しました".into()),
-            DebounceStartFailed    => (Error, "開始失敗", "デバウンサーの開始に失敗しました".into()),
+            Success             => (Info,  "バックアップを開始しました", "".into()),
+            AlreadyRunning      => (Info,  "既にフォルダ監視中です", "".into()),
+            NewDebouncerFailed  => (Error, "開始失敗", "デバウンサーの生成に失敗しました".into()),
+            DebounceStartFailed => (Error, "開始失敗", "デバウンサーの開始に失敗しました".into()),
         };
 
-        NotifyDTO { level, title, body }
+        NotifyPayload { level, range, title, body }
     }
 }
+
 
 /// フォルダ監視の停止処理の結果 (UI/ログへの送信用)
 #[derive(Debug, Clone, serde::Serialize)]
@@ -300,17 +350,18 @@ pub enum StopResult {
     AlreadyStopped, // 既に停止中
 }
 
-impl Notify for StopResult {
-    fn to_dto(&self) -> NotifyDTO {
-        use NotifyLevel::*;
+impl ToNotify for StopResult {
+    fn to_payload(&self) -> NotifyPayload {
         use StopResult::*;
 
-        let (level, title, body) = match self {
-            Success        => (Info, "バックアップを停止しました", "".into()),
-            AlreadyStopped => (Info, "既に停止済み", "".into()),
+        let level = NotifyLevel::Info;
+        let range = NotifyRange::Desktop;
+        let (title, body) = match self {
+            Success        => ("バックアップを停止しました", "".into()),
+            AlreadyStopped => ("既に停止済みです", "".into()),
         };
 
-        NotifyDTO { level, title, body }
+        NotifyPayload { level, range, title, body }
     }
 }
 
@@ -326,18 +377,19 @@ pub enum WaitResult {
     Missing(PathBuf), // ファイルを見失った
 }
 
-impl Notify for WaitResult {
-    fn to_dto(&self) -> NotifyDTO {
+impl ToNotify for WaitResult {
+    fn to_payload(&self) -> NotifyPayload {
         use NotifyLevel::*;
+        use NotifyRange::*;
         use WaitResult::*;
 
-        let (level, title, body) = match self {
-            Success       => (Debug, "ファイルの書込み終了を検知", "".into()),
-            Locked(path)  => (Error, "ファイルがロック中", get_filename(path)),
-            Missing(path) => (Error, "ファイル消失または読取権限なし", get_filename(path)),
+        let (level, range, title, body) = match self {
+            Success       => (Remark, Console, "ファイルの書込み終了を検知", "".into()),
+            Locked(path)  => (Error,  Desktop, "ファイルがロック中", get_filename(path)),
+            Missing(path) => (Error,  Desktop, "ファイル消失または読取権限なし", get_filename(path)),
         };
 
-        NotifyDTO { level, title, body }
+        NotifyPayload { level, range, title, body }
     }
 }
 
@@ -356,21 +408,22 @@ pub enum BackupResult {
     CopyFailed(PathBuf),
 }
 
-impl Notify for BackupResult {
-    fn to_dto(&self) -> NotifyDTO {
+impl ToNotify for BackupResult {
+    fn to_payload(&self) -> NotifyPayload {
         use BackupResult::*;
         use NotifyLevel::*;
+        use NotifyRange::*;
 
-        let (level, title, body) = match self {
-            Copied         (path) => (Info, "バックアップ", get_filename(path)),
-            AlreadyExists  (path) => (Silent, "既にバックアップ済み", get_filename(path)),
-            InvalidFileName(path) => (Error, "ファイル名の取得に失敗", get_filename(path)),
-            MetadataFailed (path) => (Error, "ファイル情報の取得に失敗", get_filename(path)),
-            ModifiedFailed (path) => (Error, "最終更新時の取得に失敗", get_filename(path)),
-            CopyFailed     (path) => (Error, "コピー失敗", get_filename(path)),
+        let (level, range, title, body) = match self {
+            Copied         (path) => (Info,  Desktop, "バックアップ", get_filename(path)),
+            AlreadyExists  (path) => (Remark, Log,    "既にバックアップ済み", get_filename(path)),
+            InvalidFileName(path) => (Error, Desktop, "ファイル名の取得に失敗", get_filename(path)),
+            MetadataFailed (path) => (Error, Desktop, "ファイル情報の取得に失敗", get_filename(path)),
+            ModifiedFailed (path) => (Error, Desktop, "最終更新時の取得に失敗", get_filename(path)),
+            CopyFailed     (path) => (Error, Desktop, "コピー失敗", get_filename(path)),
         };
 
-        NotifyDTO { level, title, body }
+        NotifyPayload { level, range, title, body }
     }
 }
 

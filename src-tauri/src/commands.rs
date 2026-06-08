@@ -4,9 +4,9 @@ use tauri::{AppHandle, Manager, State, Window};
 use tauri_plugin_dialog::{DialogExt, MessageDialogButtons, MessageDialogKind};
 
 use crate::models::config::Config;
-use crate::models::notify::Notify;
 use crate::models::state::ConfigState;
-use crate::services::{watch::Watcher};
+use crate::models::notify::{AppNotifier, Notifier, ToNotify};
+use crate::services::watch::Watcher;
 
 
 /// HTML生成直後の処理
@@ -54,26 +54,15 @@ pub async fn start_watching(
         // ※UIへ通知が必要な場合はここに追記
     }
 
-    let is_notify = config.is_notify;
+    // UIへの送信機を生成
+    let notifier         = AppNotifier::new(&app, config.is_notify);
+    let unsaved_notifier = AppNotifier::new(&app, config.is_notify_unsaved);
 
     // 設定値をチェック
     if let Err(error) = config.validate() {
 
         // UIへエラーを送信
-        error.send(&app, is_notify);
-
-        let main_window = app.get_webview_window("main")
-            .expect("メインウィンドウの取得に失敗");
-
-        // モーダルダイアログを表示
-        app.dialog()
-            .message(format!("開始できませんでした\n{}", error.to_dto().body))
-            // .title("サーバーエラー")
-            .kind(MessageDialogKind::Info)
-            .buttons(MessageDialogButtons::Ok)
-            .parent(&main_window)   // メインウィンドウをブロック
-            .blocking_show();
-
+        notifier.notify(&error);
         return Err(());
     }
 
@@ -81,7 +70,7 @@ pub async fn start_watching(
     config_state.write(config.clone());
 
     // 開始処理を呼出し
-    let result = watcher.start(app, config);
+    let result = watcher.start(config, notifier, unsaved_notifier);
     result
 }
 
@@ -98,8 +87,9 @@ pub async fn stop_watching(
     // Stateから設定値を取得
     let is_desktop_notify = config_state.load().is_notify;
 
-    // 結果を受信機へ送信
-    result.send(&app, is_desktop_notify);
+    // 結果をUIへ送信
+    let notifier = AppNotifier::new(&app, is_desktop_notify);
+    notifier.notify(&result);
 
     Ok(())
 }

@@ -330,7 +330,7 @@ async function initEventListener() {
         // ログの種類に応じてCSSを適用
         logItem.classList.add(
             "log-item",
-            (level == "errorSilent") ? "error" : level  // レベル名 = CSSクラス名
+            level  // レベル名 = CSSクラス名
         );
 
         // テキストを設定 (タイムスタンプ + メッセージ)

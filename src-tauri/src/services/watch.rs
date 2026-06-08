@@ -2,11 +2,10 @@ use std::sync::{Arc, Mutex};
 use std::time::Duration;
 use futures::FutureExt;
 use notify_debouncer_full::{notify::*, DebounceEventResult, new_debouncer, Debouncer, RecommendedCache};
-use tauri::AppHandle;
 use tokio::sync::mpsc::Sender;  // Tokio版を使用すること
 
 use crate::models::config::Config;
-use crate::models::notify::{Notify, StartResult, StopResult, WaitResult, WatchInfo};
+use crate::models::notify::{Notifier, StartResult, StopResult, WaitResult, WatchInfo};
 use crate::services::file_manager::ActiveFileManager;
 use crate::services::target_checker::TargetChecker;
 use crate::services::wait::wait_for_file_writing;
@@ -40,17 +39,18 @@ impl Watcher {
     /// 
     /// config は validate() 済みであることが必要
     /// 戻り値： フォルダ監視の開始に成功したか
-    pub fn start(&self, app: tauri::AppHandle, config: Config) -> std::result::Result<(), ()> {
+    pub fn start(&self, config: Config, notifier: impl Notifier,
+        unsaved_notifier: impl Notifier) -> std::result::Result<(), ()> {
+
         use StartResult::*;
 
         // move用にクローン
         let file_manager = self.file_manager.clone();
-        let app_clone = app.clone();
+        let notifier_clone = notifier.clone();
 
         // configからクローン (config自体はmoveする)
         let source_path = config.source_path.clone();
         let recursive = config.recursive;
-        let is_desktop_notify = config.is_notify;
 
         // 「バックアップ対象か」の判定機を生成
         let target_checker = TargetChecker::new(
@@ -61,7 +61,7 @@ impl Watcher {
         // 「ファイル未保存時間」の計測用スレッド作成
         // 計測しない場合は None
         let timer_tx = if config.is_notify_unsaved {
-            let tx = timer::run_timer(config.notify_interval, app.clone());
+            let tx = timer::run_timer(config.notify_interval, unsaved_notifier);
             Some(tx)
         } else {
             None
@@ -74,21 +74,20 @@ impl Watcher {
 
         // 既に開始していたら終了 (二重起動防止)
         if lock_debouncer.is_some() {
-            AlreadyRunning.send(&app, is_desktop_notify);
+            notifier.notify(&AlreadyRunning);
             return Err(());
         }
-
 
         // デバウンサを生成
         // フォルダ内を監視し、変更発生時に引数関数を実行する
         // 今回は2秒以上イベント通知が途切れるのを待つ
         let debouncer = new_debouncer(
-            Duration::from_secs(2), None,move |result: DebounceEventResult| {
+            Duration::from_secs(2), None, move |result: DebounceEventResult| {
 
             // moveした値を参照で渡す
             Self::debouncer_callback(
                 result, &file_manager, &config,
-                &target_checker, &timer_tx, &app_clone
+                &target_checker, &timer_tx, &notifier_clone
             );
         });
 
@@ -97,7 +96,7 @@ impl Watcher {
             Ok(debouncer) => debouncer,
             Err(error) => {
                 eprintln!("{error}");
-                NewDebouncerFailed.send(&app, is_desktop_notify);
+                notifier.notify(&NewDebouncerFailed);
                 return Err(());
             }
         };
@@ -109,10 +108,10 @@ impl Watcher {
             RecursiveMode::NonRecursive
         };
 
-        // フォルダを監視対象に登録 (NonRecursive = サブフォルダを含まない)
+        // フォルダを監視対象に登録
         if let Err(error) = debouncer.watch(source_path, mode) {
             eprintln!("{error}");
-            DebounceStartFailed.send(&app, is_desktop_notify);
+            notifier.notify(&DebounceStartFailed);
             return Err(());
         };
 
@@ -120,7 +119,7 @@ impl Watcher {
         *lock_debouncer = Some(debouncer);
 
         // フォルダ監視開始の成功を通知
-        Success.send(&app, is_desktop_notify);
+        notifier.notify(&Success);
         Ok(())
     }
 
@@ -130,12 +129,10 @@ impl Watcher {
     fn debouncer_callback(
         result: DebounceEventResult, file_manager: &Arc<ActiveFileManager>,
         config: &Config, target_checker: &TargetChecker,
-        timer_tx: &Option<Sender<()>>, app: &AppHandle
+        timer_tx: &Option<Sender<()>>, notifier: &impl Notifier
     ) {
         match result {
             Ok(events) => {
-                // move用にクローン
-                let is_notify = config.is_notify;
 
                 // フォルダ内で発生した全てのイベント
                 for debounced_event in events {
@@ -145,24 +142,25 @@ impl Watcher {
                     let is_modify = kind.is_modify() || kind.is_create();
                     if !is_modify { continue; }
 
+
                     // 検出したファイル全てに処理
                     for path in debounced_event.event.paths {
 
                         // バックアップ対象かを判定
                         if !target_checker.is_target(&path) {
-                            WatchInfo::NotTarget(path).send(app, is_notify);
+                            notifier.notify( &WatchInfo::NotTarget(path) );
                             continue;
                         }
 
                         // 変更検出を通知
-                        WatchInfo::ModificationDetected(path.clone()).send(app, is_notify);
+                        notifier.notify( &WatchInfo::Detected(path.clone()) );
 
                         // move用にクローン
                         let destination_path = config.destination_path.clone();
                         let source_path = config.source_path.clone();
                         let recursive = config.recursive;
                         let timer_tx = timer_tx.clone();
-                        let app = app.clone();
+                        let notifier = notifier.clone();
 
                         // ファイル変更終了待ち + バックアップ処理
                         file_manager.execute(&path, move |path| {
@@ -181,7 +179,8 @@ impl Watcher {
                                             destination_path
                                         };
                                         
-                                        backup::backup_file(&destination_path, &path).send(&app, is_notify);
+                                        let result = backup::backup_file(&destination_path, &path);
+                                        notifier.notify(&result);
 
                                         // 未保存時間をリセット
                                         // None → 通知OFFの状態
@@ -192,7 +191,7 @@ impl Watcher {
                                     }
 
                                     // 待機失敗時: メッセージを送信
-                                    _ => result.send(&app, is_notify),
+                                    _ => notifier.notify(&result),
                                 }
                             }.boxed()
                         });
@@ -202,7 +201,7 @@ impl Watcher {
 
             Err(errors) => {
                 eprintln!("{:#?}", errors);
-                WatchInfo::DebounceError.send(&app, config.is_notify);
+                notifier.notify(&WatchInfo::DebounceError);
             }
         }
     }

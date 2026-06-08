@@ -210,7 +210,7 @@ pub fn get_destination_for_recursive(source: &Path, destination: &Path, file: &P
 // #[cfg(test)]
 // mod tests {
 //     use super::*;
-//     use crate::models::notify::{Notify};
+//     use crate::models::notify::{ToNotify};
 
 //     #[test]
 //     fn one_result() {
@@ -229,7 +229,7 @@ pub fn get_destination_for_recursive(source: &Path, destination: &Path, file: &P
 //         for path in paths {
 //             let source = PathBuf::from(path);
 //             let result = backupper.backup_file(&source);
-//             let dto = result.to_dto();
+//             let dto = result.to_payload();
 //             println!("{}: {}", dto.title, dto.body);
 //             println!("{:?}", result);
 //             println!();
@@ -243,7 +243,7 @@ pub fn get_destination_for_recursive(source: &Path, destination: &Path, file: &P
 
 //         let source = PathBuf::from(paths[0]);
 //         let result = backupper.backup_file(&source);
-//         let dto = result.to_dto();
+//         let dto = result.to_payload();
 //         println!("{}: {}", dto.title, dto.body);
 //         println!("{:?}", result);
 //         assert!(matches!(result, BackupResult::CopyFailed{..}));
