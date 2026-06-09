@@ -23,7 +23,7 @@
     <div class="hedder-div">
         <div class="hedder-app-name">Workfile Backupper</div>
         <div class="hedder-description">
-            常駐してフォルダ内を監視し、<br>
+            常駐してフォルダ内をチェックし、<br>
             ファイルが上書きされた時にバックアップを行います。<br>
         </div>
     </div>
@@ -31,7 +31,7 @@
     <div class="box-title">バックアップ設定</div>
     <div class="box-body">
         <div class="box-inner">
-            <label for="source-path">バックアップ元（監視するフォルダ）</label>
+            <label for="source-path">ファイル保存を検知するフォルダ</label>
             <div class="folder-select-div">
                 <input type="text" id="source-path" class="folder-path" placeholder="指定されていません" readonly>
                 <button id="source-btn" class="folder-btn">選択</button>
@@ -54,7 +54,7 @@
         </div>
         <hr>
         <div class="box-inner">
-            <label for="file-type" class="bottom-margin">バックアップするファイル</label>
+            <label for="file-type">バックアップするファイル</label>
             <div class="file-type-div">
                 <select id="file-type" required>
                     <option value="all-files-enabled" selected>全てのファイル</option>
@@ -71,7 +71,7 @@
         <div class="box-inner">
             <label class="checkbox">
                 <input type="checkbox" id="is-notify" />
-                バックアップ関連情報を通知
+                バックアップ情報を通知
             </label>
         </div>
         <hr>
@@ -82,7 +82,7 @@
             </label>
             <div id="notify-interval-div" class="notify-interval-div">
                 <input type="number" id="notify-interval" min="1" max="9999">
-                <div>分間 ファイルの書込みがなければ通知</div>
+                <div>分間 対象ファイルの保存がなければ通知</div>
             </div>
         </div>
     </div>
@@ -92,7 +92,7 @@
         <div class="box-inner">
             <label>
                 <input type="checkbox" id="is-shown" />
-                起動時にこの画面を開く
+                起動時にこの画面を表示
             </label>
         </div>
         <hr>

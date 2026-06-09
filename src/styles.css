@@ -4,18 +4,21 @@
     --info-color: #2e7d32;
     --remark-color: #888;
     --error-color: #d32f2f;
-    --dark-color: #e7e7e7;
     --folder-select-height: 28px;
     --button-bg: #007acc;
     --button-hover-bg: #005999;
-    --font-weight-default: 500;   /* Noto Sans JP 細い対策、メイリオは500が無いため太くならずに済む */
+    --font-weight-default: 500;   /* Noto Sans JP 細さ対策、メイリオは500が無く、太くならずに済む */
     --body-bg: #efefef;
-    /* --body-bg: #f3f3f3; */
-    --line-color: #ddd;
-    --border-default: 1px solid var(--line-color);
+    --hedder-bg: rgb(183, 183, 189);
+    --border-default: 1px solid #ddd;
     --shadow-default: 0px 1px 5px rgba(0, 0, 0, 0.1);
     --side-margin: 0px 20px;
     --main-btn-width: 120px;
+
+    /* 背景色を薄青色に調整 */
+    --body-bg: #edeef0;
+    --hedder-bg: #b8b8c0;
+    --shadow-default: 0px 1px 5px rgba(39, 39, 77, 0.1);
 }
 
 /* 
@@ -84,22 +87,21 @@ hr {
 
 /* hrを左右隙間なく使うためのマージン */
 .box-inner {
-    margin: 13px;   /* ウィンドウ内側の余白 */
+    margin: 11px 13px;   /* ウィンドウ内側の余白 */
 }
 
 /* 設定の種類名 */
 .box-title {
     margin: var(--side-margin);
     padding: 8px 0px;
-    font-weight: var(--font-weight-default);
-    /* font-weight: 500; */
-    font-size: 120%;
+    font-weight: 500;
+    font-size: 115%;
 }
 
 /* 設定を種類ごとにまとめるウィンドウ */
 .box-body {
     margin: var(--side-margin);
-    margin-bottom: 14px;        /* ウィンドウ間の余白 */
+    margin-bottom: 12px;        /* ウィンドウ間の余白 */
     background-color: white;
     padding: 0;
     border: var(--border-default);
@@ -116,10 +118,6 @@ label {
     font-weight: var(--font-weight-default);
 }
 
-label.bottom-margin {
-    margin-bottom: 6px;
-}
-
 select, input {
     height: 28px;
     padding: 0px 8px;
@@ -131,8 +129,6 @@ select, input {
 input {
     width: 100%;
 }
-
-/* input[type="text"] {} */
 
 /* ボタン部分を改行させない */
 input[type="checkbox"],
@@ -152,6 +148,7 @@ input[type="radio"] {
     align-items: center;
     gap: 14px;
     width: 100%;
+    margin-top: 6px;
     margin-bottom: 5px;
 }
 
@@ -223,7 +220,6 @@ button:disabled {
     background-color: #d3d3d3;
     color: #888888;
     cursor: not-allowed;    /* カーソルを禁止マークに */
-    /* opacity: 0.7; */
     box-shadow: none;
 }
 
@@ -321,45 +317,25 @@ button:disabled {
     margin: 2px 0px;
     line-height: 1.4;
 }
-.log-item.error  { color: var(--error-color); }     /* 赤: エラー*/
-.log-item.info   { color: var(--info-color); }      /* 緑: 成功*/
-.log-item.remark { color: var(--remark-color); }    /* 灰: 軽度の情報 */
+.log-item.error  { color: var(--error-color); }  /* 赤: エラー*/
+.log-item.info   { color: var(--info-color); }   /* 緑: 成功*/
+.log-item.remark { color: var(--remark-color); } /* 灰: 軽度の情報 */
+
 
 /* ログ時刻 */
 .log-time {
-    /* margin: 4px 0px; */
-    /* color: #888; */
-    /* padding: 0; */
     font-family: monospace;  /* 等幅で時間をそろえる*/
-    /* margin-right: 4px; */
 }
 
-/* ログタイトル   背景:濃色, 文字:白色 */
+/* ログタイトル */
 .log-title {
     font-weight: bold;
     margin: 0px 10px;
-    /* padding: 0; */
-
-    /* padding: 0px 6px; */
-    /* margin-right: 6px; */
-    /*     
-    color: white;
-    border-radius: 3px;
-    opacity: 0.6;
-     */
-    /* 背景色を薄くする */
 }
-/* 
-.log-title.log-info   { background-color: var(--info-color); }
-.log-title.log-remark { background-color: var(--remark-color); }
-.log-title.log-error  { background-color: var(--error-color); }
- */
 
-/* ログ本文 */
+/* ログ本文 (枠内で折り返す) */
 .log-body {
-    /* padding: 0; */
-
-    word-break: break-all;  /* 枠内で折り返す*/
+    word-break: break-all;
 }
 
 /*===========================================================================*/
@@ -379,8 +355,6 @@ button:disabled {
 /* 伸縮して余白を埋める */
 .folder-path {
     flex: 1;
-    /* border: 1px solid var(--button-bg); */
-    /* border-radius: 4px 0 0 4px; */
     border: none;
     box-sizing: border-box;
     height: var(--folder-select-height);
@@ -390,7 +364,6 @@ button:disabled {
 
 /* 改行を防ぐ */
 .folder-btn {
-    /* border-radius: 0 4px 4px 0; */
     border-radius: 4px;
     box-sizing: border-box;
     height: var(--folder-select-height);
@@ -409,32 +382,21 @@ button:disabled {
 
 /* ヘッダ全体 */
 .hedder-div {
-/*     
-    background-color: var(--button-hover-bg);
-    background-color: rgb(55, 71, 124);
-    background-color: rgb(55, 54, 107);
-    background-color: rgb(48, 48, 66);
-    background-color: rgb(62, 62, 90);
- */
-    background-color: rgb(183, 183, 189);
     color: white;
-
-    /* background-color: white; */
-
-
-    padding: 10px 20px;
-    margin-bottom: 10px;
+    background-color: var(--hedder-bg);
+    box-shadow: var(--shadow-default);
     display: flex;
     align-items: center;
     gap: 16px;
-    box-sizing: border-box;
     width: 100%;
-    box-shadow: var(--shadow-default);
+    padding: 7px 20px;
+    margin-bottom: 10px;
+    box-sizing: border-box;
 }
 
 /* 左側：アプリ名 */
 .hedder-app-name {
-    font-size: 160%;
+    font-size: 150%;
     font-weight: 400;
 }
 
@@ -443,18 +405,4 @@ button:disabled {
     flex: 1;
     font-size: 90%;
     font-weight: 400;
-    /* border: none; */
-
-    /* box-sizing: border-box; */
-    /* height: var(--folder-select-height); */
-    /* padding-left: 20px; */
-    /* color: #666; */
-    /* background: #f9f9f9; */
 }
-
-/*===========================================================================*/
-/* 
-.non-bottom-margin {
-    margin-bottom: 0;
-}
- */

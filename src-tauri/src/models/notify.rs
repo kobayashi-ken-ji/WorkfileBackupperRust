@@ -12,7 +12,7 @@ use crate::utilities::lock_mutex;
 
 /// 通知範囲
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize)]
-#[serde(rename_all = "camelCase")] // JSでは「info, error, silent」になる
+#[serde(rename_all = "camelCase")]
 pub enum NotifyRange {
     Dialog,     // コンソール + GUIログ + ダイアログ(確実に通知)
     Desktop,    // コンソール + GUIログ + デスクトップ通知(非通知が可能)
@@ -24,7 +24,7 @@ pub enum NotifyRange {
 
 /// 通知レベル (GUIログへ表示する文字色)
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize)]
-#[serde(rename_all = "camelCase")] // JSでは「info, error, silent」になる
+#[serde(rename_all = "camelCase")] // JSでは「info, error, remark」になる
 pub enum NotifyLevel {
     Error,      // 赤: エラー
     Info,       // 緑: 主要なイベント
@@ -90,18 +90,6 @@ impl Notifier for MockNotifier {
         log.push(event.to_payload());
     }
 }
-
-// /// テスト用送信機 (AppHandleが不要)
-// #[derive(Debug, Clone)]
-// pub struct MockNotifier {}
-// impl Notifier for MockNotifier {
-
-//     fn notify(&self, event: &impl ToNotify) {
-
-//         let payload = event.to_payload();
-//         println!("{}: {}", payload.title, payload.body);
-//     }
-// }
 
 //=============================================================================
 // 送信機 (実装)
@@ -234,9 +222,9 @@ impl Notifier for AppNotifier {
 #[derive(Debug, Clone, serde::Serialize)]
 pub enum TimerInfo {
     Elapsed { minutes: u64 },   // 未保存時間が指定分経過した
-    // Reset,                   // バックアップされ、未保存時間をリセットした
-    // Start,
-    // Stop,                    // 計測スレッドが終了
+    // Reseted,                 // 未保存時間をリセットした
+    // Started,                 // 計測スレッドを開始
+    // Stopped,                 // 計測スレッドが終了
 }
 
 impl ToNotify for TimerInfo {
@@ -276,9 +264,9 @@ impl ToNotify for ConfigError {
         let title = "開始失敗";
 
         let body = match self {
-            InvalidSourcePath      => "バックアップ元フォルダが無効です".into(),
+            InvalidSourcePath      => "保存を検知するフォルダが無効です".into(),
             InvalidDestinationPath => "バックアップ先フォルダが無効です".into(),
-            PathConflict           => "バックアップ元とバックアップ先が同じです".into(),
+            PathConflict           => "保存検知フォルダとバックアップ先が同じです".into(),
             NoExtension            => "拡張子を一つ以上設定してください".into(),
             InvalidNotifyInterval  => "未保存通知は1分以上に設定してください".into(),
         };
@@ -332,8 +320,8 @@ impl ToNotify for StartResult {
 
         let range = NotifyRange::Desktop;
         let (level, title, body) = match self {
-            Success             => (Info,  "バックアップを開始しました", "".into()),
-            AlreadyRunning      => (Info,  "既にフォルダ監視中です", "".into()),
+            Success             => (Info,  "自動バックアップを開始しました", "".into()),
+            AlreadyRunning      => (Info,  "既に開始済みです", "".into()),
             NewDebouncerFailed  => (Error, "開始失敗", "デバウンサーの生成に失敗しました".into()),
             DebounceStartFailed => (Error, "開始失敗", "デバウンサーの開始に失敗しました".into()),
         };
@@ -357,7 +345,7 @@ impl ToNotify for StopResult {
         let level = NotifyLevel::Info;
         let range = NotifyRange::Desktop;
         let (title, body) = match self {
-            Success        => ("バックアップを停止しました", "".into()),
+            Success        => ("自動バックアップを停止しました", "".into()),
             AlreadyStopped => ("既に停止済みです", "".into()),
         };
 
