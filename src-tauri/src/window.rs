@@ -6,13 +6,50 @@ use tauri::tray::TrayIconBuilder;
 use crate::utilities::ResutlErrPrint;
 
 //=============================================================================
+// Stateに登録するトレイアイコン項目
+//=============================================================================
+
+/// トレイアイコンメニュー内の項目
+pub struct TrayMenuItems {
+    pub version : MenuItem<tauri::Wry>,
+    pub show    : MenuItem<tauri::Wry>,
+    pub quit    : MenuItem<tauri::Wry>,
+    pub start   : MenuItem<tauri::Wry>,
+    pub stop    : MenuItem<tauri::Wry>,
+}
+
+impl TrayMenuItems {
+    
+    /// アプリ起動時の表示切替え
+    pub fn on_set_up(&self) {
+        let _ = self.stop.set_enabled(false);
+    }
+
+    /// 「開始/停止を押した時」の表示切替
+    pub fn onstart_or_onstop(&self) {
+        let _ = self.start.set_enabled(false);
+        let _ = self.stop.set_enabled(false);
+    }
+
+    /// 「開始成功時」または「停止失敗時」の表示切替
+    pub fn startok_or_stoperr(&self) {
+        let _ = self.stop.set_enabled(true);
+    }
+
+    /// 「開始失敗時」または「停止成功時」の表示切替
+    pub fn starterr_or_stopok(&self) {
+        let _ = self.start.set_enabled(true);
+    }
+}
+
+//=============================================================================
 // トレイアイコン
 //=============================================================================
 
 /// トレイアイコンを生成する
 pub fn init_tray(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
 
-    // 右クリックメニューの作成
+    // メニューの作成
     let version = MenuItem::with_id(app, "version", "バージョン情報", true, None::<&str>)?;
     let show  = MenuItem::with_id(app, "show", "設定画面を開く", true, None::<&str>)?;
     let quit  = MenuItem::with_id(app, "quit", "終了", true, None::<&str>)?;
@@ -21,7 +58,7 @@ pub fn init_tray(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>>
     let menu  = Menu::with_items(app, &[&version, &show, &start, &stop, &quit])?;
 
     // トレイアイコンの構築
-    let _tray = TrayIconBuilder::new()
+    let _tray = TrayIconBuilder::with_id("tray")
         .icon(app.default_window_icon().expect("アイコン取得に失敗").clone())
         .menu(&menu)
         .on_menu_event(|app, event| match event.id.as_ref() {
@@ -45,6 +82,11 @@ pub fn init_tray(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>>
             _ => {}
         })
         .build(app)?;
+
+    // Stateに登録
+    let items = TrayMenuItems { version, show, quit, start, stop };
+    items.on_set_up();
+    app.manage(items);
 
     Ok(())
 }

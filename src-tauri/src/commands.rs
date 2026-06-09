@@ -1,12 +1,12 @@
 //! JavaScript から呼び出される処理を定義
 
-use tauri::{AppHandle, Manager, State, Window};
-use tauri_plugin_dialog::{DialogExt, MessageDialogButtons, MessageDialogKind};
+use tauri::{AppHandle, State, Window};
 
 use crate::models::config::Config;
 use crate::models::state::ConfigState;
-use crate::models::notify::{AppNotifier, Notifier, ToNotify};
+use crate::models::notify::{AppNotifier, Notifier};
 use crate::services::watch::Watcher;
+use crate::window::TrayMenuItems;
 
 
 /// HTML生成直後の処理
@@ -41,8 +41,12 @@ pub fn get_config(
 #[tauri::command]
 pub async fn start_watching(
     config_state: State<'_, ConfigState>, watcher: State<'_, Watcher>,
-    app: AppHandle, mut config: Config) -> Result<(), ()> {
+    tray_menu: State<'_, TrayMenuItems>, app: AppHandle, mut config: Config
+) -> Result<(), ()> {
 
+
+    // メニューの表示切替
+    tray_menu.onstart_or_onstop();
 
     // 既に開始済みの場合は停止する
     watcher.stop().await;
@@ -63,6 +67,10 @@ pub async fn start_watching(
 
         // UIへエラーを送信
         notifier.notify(&error);
+
+        // メニューの表示切替
+        tray_menu.starterr_or_stopok();
+
         return Err(());
     }
 
@@ -71,6 +79,13 @@ pub async fn start_watching(
 
     // 開始処理を呼出し
     let result = watcher.start(config, notifier, unsaved_notifier);
+
+    // メニューの表示切替
+    match result {
+        Ok(())  => tray_menu.startok_or_stoperr(),
+        Err(()) => tray_menu.starterr_or_stopok(),
+    }
+
     result
 }
 
@@ -79,7 +94,11 @@ pub async fn start_watching(
 #[tauri::command]
 pub async fn stop_watching(
     app: tauri::AppHandle, config_state: State<'_, ConfigState>,
-    watcher: State<'_, Watcher>) -> Result<(), ()> {
+    tray_menu: State<'_, TrayMenuItems>, watcher: State<'_, Watcher>
+) -> Result<(), ()> {
+
+    // メニューの表示切替
+    tray_menu.onstart_or_onstop();
 
     // 監視スレッドを停止
     let result = watcher.stop().await;
@@ -90,6 +109,9 @@ pub async fn stop_watching(
     // 結果をUIへ送信
     let notifier = AppNotifier::new(&app, is_desktop_notify);
     notifier.notify(&result);
+
+    // メニューの表示切替
+    tray_menu.starterr_or_stopok();
 
     Ok(())
 }
