@@ -295,7 +295,7 @@ impl ToNotify for WatchInfo {
 
         let (level, range, title, body) = match self {
             Detected(path)  => (Remark, Console, "変更を検出", get_filename(path)),
-            NotTarget(path) => (Remark, Log,     "対象外のためスキップ", get_filename(path)),
+            NotTarget(path) => (Remark, Console, "対象外のためスキップ", get_filename(path)),
             DebounceError   => (Error,  Desktop, "フォルダ監視中のエラー", "デバウンスエラーが発生".into()),
         };
 
@@ -372,7 +372,7 @@ impl ToNotify for WaitResult {
         use WaitResult::*;
 
         let (level, range, title, body) = match self {
-            Success       => (Remark, Console, "ファイルの書込み終了を検知", "".into()),
+            Success       => (Remark, None,    "ファイルの書込み終了を検知", "".into()),
             Locked(path)  => (Error,  Desktop, "ファイルがロック中", get_filename(path)),
             Missing(path) => (Error,  Desktop, "ファイル消失または読取権限なし", get_filename(path)),
         };

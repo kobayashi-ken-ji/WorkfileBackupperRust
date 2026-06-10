@@ -56,27 +56,28 @@ impl ActiveFileManager  {
 
             // Tauri以外で使わないのなら、以下でも可能
             // handle: tauri::async_runtime::handle().inner().clone(),
-
-            // 現在動いているTauri（Tokio）のランタイムのハンドルを捕まえる
-            // ※ Tauriではエラーとなった
-            // handle: runtime::Handle::current(), 
         }
     }
 
+    /*
+        スレッドへ非同期処理を渡す為に必要な指定
 
+            FnOnce  : 所有権を消費するため必要
+            Send    : スレッド間でデータを渡せる
+            'static : スレッドより長生き (参照を含まない、など)
+
+            BoxFuture:
+                FutureをBoxで包み、実体をヒープ領域に固定する
+                ・所有権とライフタイムを確保
+                ・サイズを一律化
+     */
     /// 新規スレッド上で指定処理を実行 (ファイルが既に実行中の場合は処理をスキップ)
     pub fn execute<F>(&self, path: &Path, callback: F)
     where
-        // クロージャでmoveするために必要なトレイト境界
-        //      FnOnce   : 所有権を消費するため必要
-        //      Send     : スレッド間でデータを渡せる
-        //      'static  : スレッドより長生き (参照を含まない、など)
-        //      BoxFuture: async処理は固有型のため、Boxで包んでいる
         F: FnOnce(PathBuf) -> BoxFuture<'static, ()> + Send + 'static,
     {
-        let files = self.active_files.clone();
-        
         // 処理中ファイルのリストを排他ロックする
+        let files = self.active_files.clone();
         let mut lock_files = lock_mutex(&files);
 
         // ファイルが既に処理中の場合はスキップ

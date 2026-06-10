@@ -1,3 +1,4 @@
+use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 use futures::FutureExt;
@@ -48,7 +49,7 @@ impl Watcher {
         let file_manager = self.file_manager.clone();
         let notifier_clone = notifier.clone();
 
-        // configからクローン (config自体はmoveする)
+        // configからクローン (config本体はmoveする)
         let source_path = config.source_path.clone();
         let recursive = config.recursive;
 
@@ -80,9 +81,9 @@ impl Watcher {
 
         // デバウンサを生成
         // フォルダ内を監視し、変更発生時に引数関数を実行する
-        // 今回は2秒以上イベント通知が途切れるのを待つ
+        // 指定時間以上イベント通知が途切れるのを待つ
         let debouncer = new_debouncer(
-            Duration::from_secs(2), None, move |result: DebounceEventResult| {
+            Duration::from_secs(5), None, move |result: DebounceEventResult| {
 
             // moveした値を参照で渡す
             Self::debouncer_callback(
@@ -91,7 +92,7 @@ impl Watcher {
             );
         });
 
-        // デバウンサのResult処理
+        // デバウンサ生成のエラー処理
         let mut debouncer = match debouncer {
             Ok(debouncer) => debouncer,
             Err(error) => {
@@ -124,8 +125,8 @@ impl Watcher {
     }
 
 
-    // デバウンサーへ渡す関数
-    // フォルダ内変更を検出後の処理
+    /// デバウンサーへ渡す関数
+    /// フォルダ内の変更を検出後の処理
     fn debouncer_callback(
         result: DebounceEventResult, file_manager: &Arc<ActiveFileManager>,
         config: &Config, target_checker: &TargetChecker,
@@ -142,7 +143,6 @@ impl Watcher {
                     let is_modify = kind.is_modify() || kind.is_create();
                     if !is_modify { continue; }
 
-
                     // 検出したファイル全てに処理
                     for path in debounced_event.event.paths {
 
@@ -155,46 +155,15 @@ impl Watcher {
                         // 変更検出を通知
                         notifier.notify( &WatchInfo::Detected(path.clone()) );
 
-                        // move用にクローン
-                        let destination_path = config.destination_path.clone();
-                        let source_path = config.source_path.clone();
-                        let recursive = config.recursive;
-                        let timer_tx = timer_tx.clone();
-                        let notifier = notifier.clone();
-
                         // ファイル変更終了待ち + バックアップ処理
-                        file_manager.execute(&path, move |path| {
-                            async move {
-                                // 書込みが終了するまで待機
-                                let result = wait_for_file_writing(&path).await;
-                                match result {
-
-                                    // 待機成功時: ファイルをバックアップ
-                                    WaitResult::Success => {
-
-                                        // 相対パス対応のコピー先を生成
-                                        let destination_path = if recursive {
-                                            backup::get_destination_for_recursive(&source_path, &destination_path, &path)
-                                        } else {
-                                            destination_path
-                                        };
-                                        
-                                        let result = backup::backup_file(&destination_path, &path);
-                                        notifier.notify(&result);
-
-                                        // 未保存時間をリセット
-                                        // None → 通知OFFの状態
-                                        if let Some(timer_tx) = timer_tx {
-                                            timer_tx.send(()).await
-                                                .eprint("未保存時間リセット信号の送信エラー");
-                                        }
-                                    }
-
-                                    // 待機失敗時: メッセージを送信
-                                    _ => notifier.notify(&result),
-                                }
-                            }.boxed()
-                        });
+                        Self::wait_and_backup(
+                            file_manager,
+                            config.source_path.clone(),
+                            config.destination_path.clone(),
+                            &path,
+                            timer_tx.clone(),
+                            notifier.clone(),
+                        );
                     }
                 }
             }
@@ -207,7 +176,47 @@ impl Watcher {
     }
 
 
-    // 「停止」ボタンが押されたときの処理 (開始していなくてもエラーなし)
+    /// ファイル変更終了待ち + バックアップ処理
+    fn wait_and_backup(
+        file_manager: &Arc<ActiveFileManager>, 
+        source_path: PathBuf,
+        destination_path: PathBuf,
+        path: &PathBuf,
+        timer_tx: Option<Sender<()>>,
+        notifier: impl Notifier,
+    ) {
+        // 「処理中ファイルリスト」に登録する
+        file_manager.execute(&path, move |path| {
+
+            // スレッドに渡すため、BoxFuture化
+            async move {
+
+                // 書込みが終了するまで待機
+                let result = wait_for_file_writing(&path).await;
+                notifier.notify(&result);
+
+                // 待機失敗時はスキップ
+                if !matches!(result, WaitResult::Success) {
+                    return;
+                }
+
+                // バックアップを実行
+                let result = backup::backup_file(&source_path, &destination_path, &path);
+                notifier.notify(&result);
+                
+                // 未保存時間をリセット
+                // None → 通知OFFの状態
+                if let Some(timer_tx) = timer_tx {
+                    timer_tx.send(()).await.eprint("未保存時間リセット信号の送信エラー");
+                }
+
+            }.boxed()
+        });
+    }
+
+
+    /// 「停止」ボタンが押されたときの処理
+    /// (既に停止中でも実行可)
     pub async fn stop(&self) -> StopResult {
 
         // std版Mutexは、ロック状態では await を使用できないため、

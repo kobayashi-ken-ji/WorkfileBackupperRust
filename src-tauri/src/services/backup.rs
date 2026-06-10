@@ -8,9 +8,13 @@ use crate::models::notify::BackupResult;
 //=============================================================================
 
 /// 指定ファイルをバックアップ
-/// 引数 - コピー先フォルダ, コピーするファイル
-pub fn backup_file(destination: &Path, path: &Path) -> BackupResult {
+/// ※「サブフォルダを含める」に対応
+/// 引数 - コピー元フォルダ, コピー先フォルダ, コピーするファイル
+pub fn backup_file(source: &Path, destination: &Path, path: &Path) -> BackupResult {
     use BackupResult::*;
+    //-----------------------------------------------------
+    // タイムスタンプ文字列を生成
+    //-----------------------------------------------------
 
     // メタデータの取得
     let metadata = match fs::metadata(path) {
@@ -34,14 +38,24 @@ pub fn backup_file(destination: &Path, path: &Path) -> BackupResult {
     let local_time: DateTime<Local> = DateTime::from(system_time);
     let time_stamp = local_time.format("[%Y%m%d_%H%M%S]").to_string();
 
-    /*
-        ファイル名にドットが含まれる場合
-            1.00 というファイル名に set_extension() すると
-            00 を上書きしてしまうので、push()を使用する
+    //-----------------------------------------------------
+    // 保存先フォルダを生成
+    //-----------------------------------------------------
 
-        Windowsの拡張パスの場合
-            PathBuf::push() すると拡張子のドットをフォルダ階層と認識してしまう
-            そのため、OsStringでファイル名を生成する
+    let destination = create_destination_folder(source, destination, path);
+
+    //-----------------------------------------------------
+    // ファイル名を生成
+    //-----------------------------------------------------
+    /*
+        ファイル名の構築は OsString を使用する
+
+            ファイル名にドットが含まれる場合
+                1.00 というファイル名に PatuBuf::set_extension() すると
+                00 を上書きしてしまう
+
+            Windowsの拡張パスの場合
+                PathBuf::push() すると拡張子のドットをフォルダ階層にしてしまう
      */
 
     // ファイル名を取得
@@ -60,8 +74,12 @@ pub fn backup_file(destination: &Path, path: &Path) -> BackupResult {
     }
 
     // パスを生成 (ディレクトリ/新ファイル名)
-    let mut new_path = PathBuf::from(destination);
+    let mut new_path = destination;
     new_path.push(new_file_name);
+
+    //-----------------------------------------------------
+    // バックアップ処理
+    //-----------------------------------------------------
 
     // 同名のファイルが既に存在するか確認
     if new_path.exists() {
@@ -70,7 +88,7 @@ pub fn backup_file(destination: &Path, path: &Path) -> BackupResult {
 
     // バックアップ実行
     match fs::copy(path, &new_path) {
-        Ok(_)  => Copied(new_path),
+        Ok(_) => Copied(new_path),
         Err(error) => {
             eprintln!("{error}");
             return CopyFailed(new_path);
@@ -79,8 +97,38 @@ pub fn backup_file(destination: &Path, path: &Path) -> BackupResult {
 }
 
 
-/// 「フォルダ階層に対応したコピー先」のパスを生成
-/// 無ければフォルダも生成
+// /// タイムスタンプを生成
+// fn get_timestamp_string(path: &Path) -> Result<String, BackupResult> {
+//     use BackupResult::*;
+
+//     // メタデータの取得
+//     let metadata = match fs::metadata(path) {
+//         Ok(metadata) => metadata,
+//         Err(error) => {
+//             eprintln!("{error}");
+//             return Err(MetadataFailed(path.to_path_buf()));
+//         }
+//     };
+
+//     // 最終更新時を取得
+//     let system_time = match metadata.modified() {
+//         Ok(time) => time,
+//         Err(error) => {
+//             eprintln!("{error}");
+//             return Err(ModifiedFailed(path.to_path_buf()));
+//         }
+//     };
+
+//     // 更新時 → ローカルタイムゾーン → [YYYYMMDD_HHMMSS]形式 へ変換
+//     let local_time: DateTime<Local> = DateTime::from(system_time);
+//     let time_stamp = local_time.format("[%Y%m%d_%H%M%S]").to_string();
+
+//     Ok(time_stamp)
+// }
+
+
+/// 「サブフォルダを含む」に対応したフォルダをコピー先へ作成
+/// そのフォルダパスを返す
 /// 問題発生時は destination をそのまま返す
 /// 
 /// 例
@@ -88,14 +136,14 @@ pub fn backup_file(destination: &Path, path: &Path) -> BackupResult {
 /// コピー先フォルダ: /dest/
 /// コピーするファイル: /sorce/folder/file.txt   ※ folderを検出
 /// 戻り値: /dest/folder/                       ※ コピー先に結合
-pub fn get_destination_for_recursive(source: &Path, destination: &Path, file: &Path) -> PathBuf {
+pub fn create_destination_folder(source: &Path, destination: &Path, file: &Path) -> PathBuf {
 
     // この時点で正規化されている
     // println!("検出したファイル: {:?}", file);
 
     // 親ディレクトリを抽出 (ファイル名の除去)
     let Some(parent) = file.parent() else {
-        eprint!("親ディレクトリの取得に失敗: {:?}", file);
+        eprintln!("親ディレクトリの取得に失敗: {:?}", file);
         return PathBuf::from(destination);
     };
 
@@ -103,7 +151,7 @@ pub fn get_destination_for_recursive(source: &Path, destination: &Path, file: &P
     let relative_path = match parent.strip_prefix(source) {
         Ok(p) => p,
         Err(error) => {
-            eprint!("相対パス化に失敗: {error}");
+            eprintln!("相対パス化に失敗: {error}");
             return PathBuf::from(destination);
         }
     };
@@ -120,88 +168,6 @@ pub fn get_destination_for_recursive(source: &Path, destination: &Path, file: &P
     // println!("サブフォルダ対応後のコピー先フォルダ: {:?}", new_path);
     PathBuf::from(new_path)
 }
-
-
-// #[derive(Debug, Clone)]
-// pub struct FileBackupper {
-//     /// コピー先ディレクトリ
-//     destination: PathBuf,
-// }
-
-// impl FileBackupper {
-
-//     /// コンストラクタ
-//     pub fn new(destination: &Path) -> Self {
-//         Self {destination: PathBuf::from(destination)}
-//     }
-
-
-//     /// コピー先ディレクトリが有効かチェック
-//     pub fn is_valid(&self) -> bool {
-//         self.destination.exists() && self.destination.is_dir()
-//     }
-
- 
-//     /// 指定ファイルをバックアップ
-//     pub fn backup_file(&self, path: &Path) -> BackupResult {
-//         use BackupResult::*;
-
-//         // メタデータの取得
-//         let metadata = match fs::metadata(path) {
-//             Ok(metadata) => metadata,
-//             Err(error) => {
-//                 eprintln!("{error}");
-//                 return MetadataFailed(path.to_path_buf());
-//             }
-//         };
-
-//         // 最終更新時を取得
-//         let system_time = match metadata.modified() {
-//             Ok(time) => time,
-//             Err(error) => {
-//                 eprintln!("{error}");
-//                 return ModifiedFailed(path.to_path_buf());
-//             }
-//         };
-
-//         // 更新時 → ローカルタイムゾーン → YYYYMMDD_HHMMSS形式 へ変換
-//         let local_time: DateTime<Local> = DateTime::from(system_time);
-//         let time_stamp = local_time.format("%Y%m%d_%H%M%S").to_string();
-
-//         // ファイル名を取得
-//         let Some(file_stem) = path.file_stem() else {
-//             return InvalidFileName(path.to_path_buf());
-//         };
-
-//         // バックアップ用ファイル名を生成 (拡張子なし)
-//         // 元ファイル名[YYYYMMDD_HHMMSS]
-//         let new_file_name =
-//             format!("{}[{}]", file_stem.to_string_lossy(), time_stamp);
-
-//         // パスを生成 (ディレクトリ/新ファイル名)
-//         let mut new_path = self.destination.clone();
-//         new_path.push(new_file_name);
-
-//         // 拡張子がある場合は付与
-//         if let Some(extention) = path.extension() {
-//             new_path.set_extension(extention);
-//         }
-
-//         // 同名のファイルが既に存在するか確認
-//         if new_path.exists() {
-//             return AlreadyExists(new_path);
-//         }
-
-//         // バックアップ実行
-//         match fs::copy(path, &new_path) {
-//             Ok(_)  => Copied(new_path),
-//             Err(error) => {
-//                 eprintln!("{error}");
-//                 return CopyFailed(new_path);
-//             }
-//         }
-//     }
-// }
 
 // //=============================================================================
 // // テスト
