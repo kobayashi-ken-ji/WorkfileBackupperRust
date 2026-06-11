@@ -29,4 +29,5 @@ futures = "0.3.32"
 notify-debouncer-full = "0.7.0"
 tauri-plugin-single-instance = "2.4.2"
 tauri-plugin-dialog = "2"
+tempfile = "3"
 

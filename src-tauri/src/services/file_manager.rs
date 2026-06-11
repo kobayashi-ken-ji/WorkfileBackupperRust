@@ -27,6 +27,61 @@ impl Drop for FileTaskGuard {
 }
 
 //=============================================================================
+// 本番/モック の切替え
+//=============================================================================
+
+/// 本番・モックを切替え (トレイトの代用)
+pub enum FileManager {
+    Real(ActiveFileManager),
+    Mock(MockFileManager),
+}
+
+impl FileManager {
+
+    pub fn execute<F>(&self, path: &Path, callback: F)
+    where F: FnOnce(PathBuf) -> BoxFuture<'static, ()> + Send + 'static
+    {
+        match self {
+            Self::Real(manager) => manager.execute(path, callback),
+            Self::Mock(manager) => manager.execute(path, callback),
+        }
+    }
+
+    pub async fn join_tasks(&self) {
+        match self {
+            Self::Real(manager) => manager.join_tasks().await,
+            Self::Mock(manager) => manager.join_tasks().await,
+        }
+    }
+}
+
+
+/// ActiveFileManager のテスト用モック
+pub struct MockFileManager {
+    pub paths: Arc<Mutex<Vec<PathBuf>>>,
+}
+
+impl MockFileManager {
+
+    pub fn new() -> Self {
+        Self { paths: Arc::new(Mutex::new(Vec::new())) }
+    }
+
+
+    /// パスの記録のみを行う (callbackは実行しない)
+    pub fn execute<F>(&self, path: &Path, _callback: F)
+    where F: FnOnce(PathBuf) -> BoxFuture<'static, ()> + Send + 'static
+    {
+        let mut paths = lock_mutex(&self.paths);
+        paths.push(path.into());
+    }
+
+
+    /// 何も行わず、即終了する
+    pub async fn join_tasks(&self) {}
+}
+
+//=============================================================================
 // 本体
 //=============================================================================
 
@@ -73,8 +128,7 @@ impl ActiveFileManager  {
      */
     /// 新規スレッド上で指定処理を実行 (ファイルが既に実行中の場合は処理をスキップ)
     pub fn execute<F>(&self, path: &Path, callback: F)
-    where
-        F: FnOnce(PathBuf) -> BoxFuture<'static, ()> + Send + 'static,
+    where F: FnOnce(PathBuf) -> BoxFuture<'static, ()> + Send + 'static
     {
         // 処理中ファイルのリストを排他ロックする
         let files = self.active_files.clone();

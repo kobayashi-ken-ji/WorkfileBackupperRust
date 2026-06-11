@@ -4,8 +4,8 @@ use tauri::{AppHandle, State, Window};
 
 use crate::models::config::Config;
 use crate::models::state::ConfigState;
-use crate::models::notify::{AppNotifier, Notifier};
-use crate::services::watch::Watcher;
+use crate::models::notify::{AppNotifier, Notifier, MockNotifier};
+use crate::services::app_manager::AppManager;
 use crate::window::TrayMenuItems;
 
 
@@ -40,7 +40,7 @@ pub fn get_config(
 /// 戻り値 - Ok:開始した, Err:開始できなかった
 #[tauri::command]
 pub async fn start_watching(
-    config_state: State<'_, ConfigState>, watcher: State<'_, Watcher>,
+    config_state: State<'_, ConfigState>, app_manager: State<'_, AppManager>,
     tray_menu: State<'_, TrayMenuItems>, app: AppHandle, mut config: Config
 ) -> Result<(), ()> {
 
@@ -49,7 +49,7 @@ pub async fn start_watching(
     tray_menu.onstart_or_onstop();
 
     // 既に開始済みの場合は停止する
-    watcher.stop().await;
+    app_manager.stop().await;
 
     // 設定ファイルを保存
     if let Err(error) = config.save(&app) {
@@ -59,9 +59,21 @@ pub async fn start_watching(
     }
 
     // UIへの送信機を生成
-    let notifier         = AppNotifier::new(&app, config.is_notify);
-    let unsaved_notifier = AppNotifier::new(&app, config.is_notify_unsaved);
+    // テスト時の不具合を避けるため、cfg で分岐処理を行う
+    let notifier = {
+        #[cfg(not(test))]
+        { Notifier::Real(AppNotifier::new(&app, config.is_notify)) }
+        #[cfg(test)]
+        { Notifier::Mock(MockNotifier::new()) }
+    };
 
+    let unsaved_notifier = {
+        #[cfg(not(test))]
+        { Notifier::Real(AppNotifier::new(&app, config.is_notify_unsaved)) }
+        #[cfg(test)]
+        { Notifier::Mock(MockNotifier::new()) }
+    };
+    
     // 設定値をチェック
     if let Err(error) = config.validate() {
 
@@ -78,7 +90,7 @@ pub async fn start_watching(
     config_state.write(config.clone());
 
     // 開始処理を呼出し
-    let result = watcher.start(config, notifier, unsaved_notifier);
+    let result = app_manager.start(config, notifier, unsaved_notifier);
 
     // メニューの表示切替
     match result {
@@ -94,14 +106,14 @@ pub async fn start_watching(
 #[tauri::command]
 pub async fn stop_watching(
     app: tauri::AppHandle, config_state: State<'_, ConfigState>,
-    tray_menu: State<'_, TrayMenuItems>, watcher: State<'_, Watcher>
+    tray_menu: State<'_, TrayMenuItems>, app_manager: State<'_, AppManager>
 ) -> Result<(), ()> {
 
     // メニューの表示切替
     tray_menu.onstart_or_onstop();
 
     // 監視スレッドを停止
-    let result = watcher.stop().await;
+    let result = app_manager.stop().await;
 
     // Stateから設定値を取得
     let is_desktop_notify = config_state.load().is_notify;

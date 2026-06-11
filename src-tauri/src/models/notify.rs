@@ -55,15 +55,30 @@ pub trait ToNotify {
 }
 
 //=============================================================================
-// 送信機 (トレイト)
+// 送信機 (モック)
 //=============================================================================
 
+// #[cfg(not(test))] について
+// Windows環境で、テスト時に使っていないReal側のtauri::AppHandleを参照してしまう。
+// テストバイナリにはそれが含まれない為、
+// テスト起動直後に STATUS_ENTRYPOINT_NOT_FOUND が発生してしまう。
 
-/// 送信機能
-pub trait Notifier: Send + Sync + 'static + Clone {
+/// 送信機の本番/モックを切替え可能にする
+#[derive(Clone)]
+pub enum Notifier {
+    #[cfg(not(test))]
+    Real(AppNotifier),
+    Mock(MockNotifier),
+}
 
-    /// UIへ情報を送信する
-    fn notify(&self, event: &impl ToNotify);
+impl Notifier {
+    pub fn notify(&self, event: &impl ToNotify) {
+        match self {
+            #[cfg(not(test))]
+            Self::Real(notifier) => notifier.notify(event),
+            Self::Mock(notifier) => notifier.notify(event),
+        }
+    }
 }
 
 //=============================================================================
@@ -80,12 +95,9 @@ impl MockNotifier {
     pub fn new() -> Self {
         Self { log: Arc::new(Mutex::new(Vec::new())) }
     }
-}
-
-impl Notifier for MockNotifier {
 
     /// 送信用型に変換し、Vecフィールドに追加する
-    fn notify(&self, event: &impl ToNotify) {
+    pub fn notify(&self, event: &impl ToNotify) {
         let mut log = lock_mutex(&self.log);
         log.push(event.to_payload());
     }
@@ -110,6 +122,43 @@ impl AppNotifier {
             is_desktop_notify,
         }
     }
+
+
+    /// UIへ情報を送信する
+    pub fn notify(&self, event: &impl ToNotify) {
+
+        // 送信用のデータ型に変換
+        let payload = event.to_payload();
+
+        // 設定された範囲へ通知
+        use NotifyRange::*;
+        match payload.range {
+
+            Dialog => {
+                self.consle(&payload);
+                self.log(&payload);
+                self.dialog(&payload);
+            }
+
+            Desktop => {
+                self.consle(&payload);
+                self.log(&payload);
+                self.desktop(payload);
+            }
+
+            Log => {
+                self.consle(&payload);
+                self.log(&payload);
+            }
+
+            Console => {
+                self.consle(&payload);
+            }
+
+            None => {}
+        }
+    }
+
 
     /// デバッグ時のみコンソールへ表示
     fn consle(&self, payload: &NotifyPayload) {
@@ -175,42 +224,6 @@ impl AppNotifier {
                 .eprint("デスクトップ通知に失敗");
 
         }).eprint("メインスレッドへの委託に失敗");
-    }
-}
-
-impl Notifier for AppNotifier {
-    fn notify(&self, event: &impl ToNotify) {
-
-        // 送信用のデータ型に変換
-        let payload = event.to_payload();
-
-        // 設定された範囲へ通知
-        use NotifyRange::*;
-        match payload.range {
-
-            Dialog => {
-                self.consle(&payload);
-                self.log(&payload);
-                self.dialog(&payload);
-            }
-
-            Desktop => {
-                self.consle(&payload);
-                self.log(&payload);
-                self.desktop(payload);
-            }
-
-            Log => {
-                self.consle(&payload);
-                self.log(&payload);
-            }
-
-            Console => {
-                self.consle(&payload);
-            }
-
-            None => {}
-        }
     }
 }
 

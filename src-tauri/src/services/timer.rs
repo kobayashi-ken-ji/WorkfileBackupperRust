@@ -21,7 +21,7 @@ use crate::models::notify::{Notifier, TimerInfo};
 /// # 戻り値
 ///     経過時間をリセットするための送信機 (ファイル保存時に使用)
 /// 
-pub fn run_timer(timeout_mins: u64, notifier: impl Notifier) -> Sender<()> {
+pub fn run_timer(timeout_mins: u64, notifier: Notifier) -> Sender<()> {
     
     // Tokio版チャンネルを使用
     // バッファ = 送信側処理をブロックせずに済む数
@@ -78,9 +78,8 @@ pub fn run_timer(timeout_mins: u64, notifier: impl Notifier) -> Sender<()> {
 
 #[cfg(test)]
 mod tests {
+    use super::*;
     use crate::{models::notify::{MockNotifier, ToNotify}, utilities::lock_mutex};
-
-use super::*;
 
     #[test]
     fn test_run_timer() {
@@ -89,8 +88,10 @@ use super::*;
         tauri::async_runtime::block_on(async {
 
             // テスト用の通知機を生成
-            let notifier = MockNotifier::new();
-            let log = notifier.log.clone();
+            let mock_notifier = MockNotifier::new();
+            let log = mock_notifier.log.clone();
+
+            let notifier = Notifier::Mock(mock_notifier);
 
             {
                 // 3秒間ファイルが保存されなければ通知される
@@ -114,6 +115,7 @@ use super::*;
             // ログ値と期待値を比較
             let log = lock_mutex(&log);
             for i in 0..expectations.len() {
+                // println!("{i}: {:?}", log[i]);
                 assert_eq!(log[i], expectations[i].to_payload());
             }
         });

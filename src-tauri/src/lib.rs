@@ -19,7 +19,7 @@ pub fn run() {
 
     use tauri::Manager;
     use crate::models::state::ConfigState;
-    use crate::services::watch::Watcher;
+    use crate::services::app_manager::AppManager;
 
     // Tauri側のTokioランタイムのハンドルを取得
     // tokio::runtime::Handleに変換するには、inner()が必要
@@ -43,7 +43,7 @@ pub fn run() {
 
         // Tauri::Stateに登録
         .manage(ConfigState::new())
-        .manage(Watcher::new(tokio_handle.inner()))
+        .manage(AppManager::new(tokio_handle.inner()))
 
         // 引数のクロージャ内は別スレッドで実行される模様
         // JSからアクセスが必要なものは、先にmanageしておく

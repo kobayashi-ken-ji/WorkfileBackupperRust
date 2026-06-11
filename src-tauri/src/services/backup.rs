@@ -10,7 +10,7 @@ use crate::models::notify::BackupResult;
 /// 指定ファイルをバックアップ
 /// ※「サブフォルダを含める」に対応
 /// 引数 - コピー元フォルダ, コピー先フォルダ, コピーするファイル
-pub fn backup_file(source: &Path, destination: &Path, path: &Path) -> BackupResult {
+pub fn back_up_file(source: &Path, destination: &Path, path: &Path) -> BackupResult {
     use BackupResult::*;
     //-----------------------------------------------------
     // タイムスタンプ文字列を生成
@@ -194,7 +194,7 @@ pub fn create_destination_folder(source: &Path, destination: &Path, file: &Path)
 
 //         for path in paths {
 //             let source = PathBuf::from(path);
-//             let result = backupper.backup_file(&source);
+//             let result = backupper.back_up_file(&source);
 //             let dto = result.to_payload();
 //             println!("{}: {}", dto.title, dto.body);
 //             println!("{:?}", result);
@@ -208,7 +208,7 @@ pub fn create_destination_folder(source: &Path, destination: &Path, file: &Path)
 //         assert_eq!(backupper.is_valid(), false);
 
 //         let source = PathBuf::from(paths[0]);
-//         let result = backupper.backup_file(&source);
+//         let result = backupper.back_up_file(&source);
 //         let dto = result.to_payload();
 //         println!("{}: {}", dto.title, dto.body);
 //         println!("{:?}", result);
