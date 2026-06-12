@@ -399,7 +399,7 @@ impl ToNotify for WaitResult {
 //=============================================================================
 
 // バックアップ処理の結果 (UI/ログへの送信用)
-#[derive(Debug, Clone, serde::Serialize)]
+#[derive(Debug, Clone, PartialEq, serde::Serialize)]
 pub enum BackupResult {
     Copied(PathBuf),
     AlreadyExists(PathBuf),
@@ -425,6 +425,22 @@ impl ToNotify for BackupResult {
         };
 
         NotifyPayload { level, range, title, body }
+    }
+}
+
+impl BackupResult {
+
+    /// パスを取得 ※テスト用
+    pub fn get_path(&self) -> PathBuf {
+        use BackupResult::*;
+        match self {
+            Copied         (path) => path.clone(),
+            AlreadyExists  (path) => path.clone(),
+            InvalidFileName(path) => path.clone(),
+            MetadataFailed (path) => path.clone(),
+            ModifiedFailed (path) => path.clone(),
+            CopyFailed     (path) => path.clone(),
+        }
     }
 }
 

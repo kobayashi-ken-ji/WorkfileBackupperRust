@@ -394,7 +394,7 @@ mod tests {
             let mut paths = lock_mutex(&paths);
 
             // バックアップ件数が期待通りか
-            assert_eq!(paths.len(), expected_count, "{:?}", full_path);
+            assert_eq!(paths.len(), expected_count, "バックアップ件数が不一致: {:?}", full_path);
 
             // パス名が等しいか
             if paths.len() > 0 {
