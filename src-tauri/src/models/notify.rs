@@ -371,7 +371,7 @@ impl ToNotify for StopResult {
 //=============================================================================
 
 /// ファイル書込終了待ちの結果 (UI/ログへの送信用)
-#[derive(Debug, Clone, serde::Serialize)]
+#[derive(Debug, Clone, PartialEq, serde::Serialize)]
 pub enum WaitResult {
     Success,          // 書込終了を確認した
     Locked(PathBuf),  // ファイルがロックされている
