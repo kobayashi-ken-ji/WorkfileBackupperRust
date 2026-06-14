@@ -1,9 +1,15 @@
-use std::path::PathBuf;
+//! アプリの主機能(フォルダ監視・バックアップ)の開始・停止を担当
+
+use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 use futures::FutureExt;
-use notify_debouncer_full::{DebounceEventHandler, DebounceEventResult, Debouncer, RecommendedCache, new_debouncer, notify::*};
 use tokio::sync::mpsc::Sender;  // Tokio版を使用すること
+use notify_debouncer_full::{
+    DebounceEventHandler, DebounceEventResult, Debouncer,
+    RecommendedCache, new_debouncer,
+    notify::{RecommendedWatcher, RecursiveMode}
+};
 
 use crate::models::config::Config;
 use crate::models::notify::{Notifier, StartResult, StopResult, WaitResult, WatchInfo};
@@ -15,17 +21,20 @@ use crate::services::timer;
 use crate::utilities::{ResutlErrPrint, lock_mutex};
 
 //=============================================================================
-// ロジック部分
+// new_debouncer() の引数
 //=============================================================================
 
-/// フォルダ内の変化を検出後の処理を担当
+/// 「監視フォルダの変化を検出」した後の処理を担当
+/// 
+/// new_debouncer() の引数に渡す構造体。 
+/// バックアップ対象かを判別し、ファイル書込終了を待機し、バックアップを行う。 
 pub struct BackupEventHandler {
-    file_manager: Arc<FileManager>,
-    target_checker: TargetChecker,
-    notifier: Notifier,
-    timer_tx: Option<Sender<()>>,
-    source_path: PathBuf,
-    destination_path: PathBuf,
+    file_manager: Arc<FileManager>,  // 処理中のファイルとタスクを管理
+    target_checker: TargetChecker,   // バックアップ対象かの判別機
+    notifier: Notifier,              // 情報送信機 (デスクトップ・ログ・コンソールへ)
+    timer_tx: Option<Sender<()>>,    // 「ファイル未保存時間」をリセットするための送信機
+    source_path: PathBuf,            // バックアップ元フォルダ (監視するフォルダ)
+    destination_path: PathBuf,       // バックアップ先フォルダ
 }
 
 // new_debouncer() の引数に渡すためにトレイトを実装
@@ -37,8 +46,9 @@ impl DebounceEventHandler for BackupEventHandler {
 
 impl BackupEventHandler {
 
-    // デバウンサー検出後のロジック
-    pub fn process_event(&self, result: DebounceEventResult) {
+    /// デバウンサー検出後のロジック
+    /// デバウンサーリザルトからファイルパスを抽出し、別タスクへ渡す
+    fn process_event(&self, result: DebounceEventResult) {
         
         let notifier = &self.notifier;
 
@@ -72,14 +82,15 @@ impl BackupEventHandler {
                 // 変更検出を通知
                 notifier.notify( &WatchInfo::Detected(path.clone()) );
 
-                // ファイル変更終了待ち + バックアップ処理
+                // ファイル書込み終了待ち + バックアップ処理
                 self.wait_and_backup(path);
             }
         }
     }
 
 
-    // ファイル変更終了待ち + バックアップ処理
+    /// ファイル書込み終了待ち + バックアップ処理
+    /// タスクを生成し、その中で非同期に実行する
     fn wait_and_backup(&self, path: PathBuf) {
 
         // move用に複製
@@ -119,77 +130,30 @@ impl BackupEventHandler {
 }
 
 //=============================================================================
-// デバウンサーの生成
-//=============================================================================
-
-use std::path::Path;
-
-/// デバウンサーの開始処理
-pub fn start_debouncer<H>(source_path: &Path, recursive: bool, notifier: Notifier, handler: H)
-    -> core::result::Result<Debouncer<RecommendedWatcher, RecommendedCache>, ()>
-where H: DebounceEventHandler,
-{
-    use StartResult::*;
-
-    // デバウンサを生成
-    // フォルダ内を監視し、変更発生時に引数関数を実行する
-    // 指定時間以上イベント通知が途切れるのを待つ
-    let mut debouncer = new_debouncer(Duration::from_secs(5), None, handler)
-        .map_err(|error| {
-            eprintln!("{error}");
-            notifier.notify(&NewDebouncerFailed);
-            ()
-        })?;
-
-    // デバウンサ生成のエラー処理
-    // let mut debouncer = match debouncer {
-    //     Ok(debouncer) => debouncer,
-    //     Err(error) => {
-    //         eprintln!("{error}");
-    //         notifier.notify(&NewDebouncerFailed);
-    //         return Err(());
-    //     }
-    // };
-
-    // 「サブフォルダを含まない」の反映
-    let mode = if recursive {
-        RecursiveMode::Recursive
-    } else {
-        RecursiveMode::NonRecursive
-    };
-
-    // フォルダを監視対象に登録
-    if let Err(error) = debouncer.watch(source_path, mode) {
-        eprintln!("{error}");
-        notifier.notify(&DebounceStartFailed);
-        return Err(());
-    };
-
-    // フォルダ監視開始の成功を通知
-    notifier.notify(&Success);
-
-    Ok(debouncer)
-}
-
-//=============================================================================
 // フォルダ監視の 開始/停止 処理
 //=============================================================================
 
+/// フォルダ監視の 開始/停止 を行う
+///
+/// アプリ主機能の 有効化/無効化 を切替える、統合的な処理を担当。
+/// TauriのStateに登録され、command から実行される。
 pub struct AppManager {
+
+    /// 処理中のファイルとタスクを管理
     file_manager: Arc<FileManager>,
 
-    // TauriのStateへの登録は固定のまま、デバウンサだけ使い捨てにする
-    // Optionが Ok→稼働中、None→停止中
+    /// Optionが Ok→稼働中、None→停止中
+    /// TauriのStateへの登録は固定のまま、デバウンサだけ使い捨てにする 
     debouncer: Mutex<Option<Debouncer<RecommendedWatcher, RecommendedCache>>>,
 }
 
 impl AppManager {
 
-    /// コンストラクタ
+    /// コンストラクタ 
+    /// Tauri側のTokioランタイムを渡す
     pub fn new(tokio_handle: &tokio::runtime::Handle) -> Self {
 
-        // 本番用を生成
-        let file_manager = 
+        let file_manager =
             FileManager::Real(ActiveFileManager::new(tokio_handle.clone()));
 
         Self {
@@ -199,13 +163,19 @@ impl AppManager {
     }
 
 
-    /// Tauriのコマンドから呼ばれる、開始処理
+    /// フォルダ監視を開始
+    /// 
+    /// Tauriのコマンドから呼び出される。 
+    /// 監視を停止するには stop() を実行する。 
+    /// 
+    /// # 引数
+    /// * `config` - ユーザー設定の値
+    /// * `notifier` - バックアップ関連の通知機
+    /// * `unsaved_notifier` - ファイル未保存関連の通知機
+    /// 
     pub fn start(
-        &self, config: Config, 
-        notifier: Notifier, unsaved_notifier: Notifier
-    ) -> core::result::Result<(), ()> {
-
-        use StartResult::*;
+        &self, config: Config, notifier: Notifier, unsaved_notifier: Notifier
+    ) -> Result<(), ()> {
 
         // 「ファイル未保存時間」の計測用スレッド作成
         // 計測しない場合は None
@@ -239,12 +209,12 @@ impl AppManager {
 
         // 既に開始していたら終了 (二重起動防止)
         if lock_debouncer.is_some() {
-            notifier.notify(&AlreadyRunning);
+            notifier.notify(&StartResult::AlreadyRunning);
             return Err(());
         }
 
         // デバウンサーを生成
-        let debouncer = start_debouncer(
+        let debouncer = Self::start_debouncer(
             &config.source_path, config.recursive, notifier, handler)?;
 
         // デバウンサをフィールドに格納
@@ -253,8 +223,59 @@ impl AppManager {
     }
 
 
-    /// Tauriのコマンドから呼ばれる、停止処理
-    /// (既に停止中でも実行可)
+    /// デバウンサーを生成・開始
+    fn start_debouncer<H>(
+        source_path: &Path, recursive: bool, notifier: Notifier, handler: H
+    ) -> Result<Debouncer<RecommendedWatcher, RecommendedCache>, ()>
+    where H: DebounceEventHandler,
+    {
+        use StartResult::*;
+
+        // デバウンサを生成
+        // フォルダ内を監視し、変更発生時に引数関数を実行する
+        // 指定時間以上イベント通知が途切れるのを待つ
+        let debouncer = new_debouncer(Duration::from_secs(5), None, handler);
+
+        // デバウンサ生成のエラー処理
+        let mut debouncer = match debouncer {
+            Ok(debouncer) => debouncer,
+            Err(error) => {
+                eprintln!("{error}");
+                notifier.notify(&NewDebouncerFailed);
+                return Err(());
+            }
+        };
+
+        // 「サブフォルダを含まない」の反映
+        let mode = if recursive {
+            RecursiveMode::Recursive
+        } else {
+            RecursiveMode::NonRecursive
+        };
+
+        // フォルダを監視対象に登録
+        if let Err(error) = debouncer.watch(source_path, mode) {
+            eprintln!("{error}");
+            notifier.notify(&DebounceStartFailed);
+            return Err(());
+        };
+
+        // フォルダ監視開始の成功を通知
+        notifier.notify(&Success);
+
+        Ok(debouncer)
+    }
+
+
+    /// フォルダ監視を停止
+    /// 
+    /// Tauriのコマンドから呼び出される。 
+    /// 既に停止中の場合は処理をスキップする。 
+    /// 停止完了を待機するために await が必要。 
+    /// 
+    /// # 戻り値
+    /// 停止処理の結果
+    /// 
     pub async fn stop(&self) -> StopResult {
 
         // std版Mutexは、ロック状態では await を使用できないため、
@@ -294,10 +315,11 @@ mod tests {
     use super::*;
     use std::fs;
     use notify_debouncer_full::{DebouncedEvent, notify::{Event, EventKind, event}};
-    use crate::{models::notify::MockNotifier, services::{file_manager, timer::run_timer}};
+    use crate::models::notify::{BackupResult, MockNotifier, ToNotify};
+    use crate::services::timer::run_timer;
     use crate::services::file_manager::MockFileManager;
 
-    // デバウンサーが検知後の処理をテスト
+    // デバウンサー検知後の処理をテスト
     #[tokio::test]
     async fn test_debouncer_callback_logic() {
 
@@ -407,5 +429,168 @@ mod tests {
             // 次のテストのために空にする
             paths.clear();
         }
+    }
+
+
+    /// AppManager全体のテスト
+    /// 
+    /// アプリ主機能の統合的なテストを行う。 
+    /// (フォルダ監視開始・書込み検出時のバックアップ・監視停止)
+    #[test]
+    fn test_app_manager() {
+
+        // Tokioランタイムを生成
+        let rantaime = tokio::runtime::Runtime::new().unwrap();
+        let tokio_handle = rantaime.handle().clone();
+
+        //-------------------------------------------------
+        // 環境構築
+        //-------------------------------------------------
+
+        // OSの安全な場所に、テスト専用一時フォルダを作成
+        let tmp_dir = tempfile::tempdir().unwrap();
+
+        // 各パスを生成
+        let source_path      = tmp_dir.path().join("src");
+        let destination_path = tmp_dir.path().join("dest");   // モック部分のため出力されない
+        let test_path        = source_path.join("test.txt");
+
+        // コピー元/先フォルダを作成
+        fs::create_dir_all(&source_path).unwrap();
+        fs::create_dir_all(&destination_path).unwrap();
+
+        // ファイルを作成
+        std::fs::File::create(&test_path).unwrap();
+
+        //-------------------------------------------------
+        // 共通インスタンス生成
+        //-------------------------------------------------
+
+        // インスタンスを生成
+        let manager = AppManager::new(&tokio_handle);
+
+        // ユーザー設定を生成
+        let mut default_config = Config::default();
+        default_config.source_path = source_path.clone();
+        default_config.destination_path = destination_path.clone();
+        default_config.extensions = vec!["txt".into()];
+
+        // 通知機 / 通知ログへの参照 を生成
+
+        // バックアップ関連通知
+        let notifier = MockNotifier::new();
+        let notifier_log = notifier.log.clone();
+        let notifier = Notifier::Mock(notifier);
+
+        // ファイル未保存関連の通知
+        let unsaved_notifier = MockNotifier::new();
+        let unsaved_notifier = Notifier::Mock(unsaved_notifier);
+
+        //-------------------------------------------------
+        // フォルダ監視開始の失敗テスト
+        //-------------------------------------------------
+
+        use crate::models::notify::NotifyPayload;
+
+        // 各テスト共通の引数
+        let args = (&manager, &notifier, &unsaved_notifier, &notifier_log);
+
+        /// フォルダ監視開始テスト 共通処理
+        /// 
+        /// # 引数
+        /// * `comment` - 失敗時に表示されるコメント
+        /// * `args` - 各テスト共通の引数
+        /// * `config` - ユーザー設定
+        /// * `expected_return` - 期待される start() の戻り値
+        /// * `expected_notify` - 期待される notifier で送信される値
+        fn test_start(
+            comment: &str,
+            args: &(&AppManager, &Notifier, &Notifier, &Arc<Mutex<Vec<NotifyPayload>>>),
+            config: Config,
+            expected_return: Result<(), ()>,
+            expected_notify: StartResult,
+        ) {
+            // 共通の引数を展開
+            let &(manager, notifier, unsaved_notifier, notifier_log) = args;
+
+            // テスト実行
+            let result = manager.start(
+                config, notifier.clone(), unsaved_notifier.clone());
+
+            // 通知された値を取得
+            let log_payload = lock_mutex(&notifier_log).last().unwrap().clone();
+
+            // 検証 (戻り値・通知値)
+            assert_eq!(&result, &expected_return, "{comment}");
+            assert_eq!(&log_payload, &expected_notify.to_payload(), "{comment}");
+        }
+
+        // 存在しないフォルダを指定
+        let mut invalid_config = default_config.clone();
+        invalid_config.source_path = tmp_dir.path().join("not_exist");
+
+        // テストケースの定義と実行
+        {
+            use StartResult::*;
+
+            test_start(
+                "デバウンサーが監視開始に失敗するテスト",
+                &args, invalid_config, Err(()), DebounceStartFailed
+            );
+
+            test_start(
+                "フォルダ監視の開始に成功するテスト",
+                &args, default_config.clone(), Ok(()), Success
+            );
+            
+            test_start(
+                "フォルダ監視が既に開始中の場合のテスト",
+                &args, default_config.clone(), Err(()), AlreadyRunning
+            );
+        }
+
+        //-------------------------------------------------
+        // ファイルが変更されたときの挙動テスト
+        //-------------------------------------------------
+
+        // 新規ファイルを生成
+        let path = source_path.join("new_file.txt");
+        std::fs::File::create(&path).unwrap();
+
+        // 「検出・待機・バックアップ」が終わるまで待機
+        std::thread::sleep(Duration::from_secs(15));
+
+        // 通知された値を取得
+        let comment = "フォルダ監視中にファイル変更を発生させるテスト";
+        let log_payload = lock_mutex(&notifier_log).last().unwrap().clone();
+        let expected = BackupResult::Copied("".into()).to_payload();
+
+        // バックアップされたファイル名にはタイムスタンプが付与されるため、概要文で比較
+        assert_eq!(&log_payload.title, &expected.title, "{comment}");
+        // println!("{comment}\n{}\n{}\n", &log_payload.title, &expected.title);      
+
+        // ファイルが存在するか検証
+        // ※ bodyにはファイル名のみが入っている (サブフォルダ名も除去)
+        let backup_path = destination_path.join(log_payload.body);
+        assert!(backup_path.is_file(), "{comment}: {:?}", backup_path);
+        // println!("{comment}: {:?}", backup_path);
+
+        //-------------------------------------------------
+        // フォルダ監視停止のテスト
+        //-------------------------------------------------
+
+        // タスクを実行/終了待機
+        rantaime.block_on(async move {
+            use StopResult::*;
+
+            // 上記テストで、既に監視が開始されている
+            let comment = "フォルダ監視が正常停止するテスト";
+            let result = manager.stop().await;
+            assert_eq!(result, Success, "{comment}");
+
+            let comment = "フォルダ監視が既に停止中のテスト";
+            let result = manager.stop().await;
+            assert_eq!(result, AlreadyStopped, "{comment}");
+        });
     }
 }

@@ -235,7 +235,7 @@ impl AppNotifier {
 //=============================================================================
 
 /// 「ファイル未保存時間」計測時の情報
-#[derive(Debug, Clone, serde::Serialize)]
+#[derive(Debug, Clone, PartialEq, serde::Serialize)]
 pub enum TimerInfo {
     Elapsed { minutes: u64 },   // 未保存時間が指定分経過した
     // Reseted,                 // 未保存時間をリセットした
@@ -262,7 +262,7 @@ impl ToNotify for TimerInfo {
 //=============================================================================
 
 /// Config型のバリデーションチェックの結果値
-#[derive(Debug, Clone, serde::Serialize)]
+#[derive(Debug, Clone, PartialEq, serde::Serialize)]
 pub enum ConfigError {
     InvalidSourcePath,          // バックアップ元フォルダが無効
     InvalidDestinationPath,     // バックアップ先フォルダが無効
@@ -296,7 +296,7 @@ impl ToNotify for ConfigError {
 //=============================================================================
 
 /// フォルダ監視中のイベント情報 (UI/ログへの送信用)
-#[derive(Debug, Clone, serde::Serialize)]
+#[derive(Debug, Clone, PartialEq, serde::Serialize)]
 pub enum WatchInfo {
     Detected(PathBuf),      // ファイル変更の検出
     NotTarget(PathBuf),     // バックアップの対象外のためスキップ
@@ -321,7 +321,7 @@ impl ToNotify for WatchInfo {
 
 
 /// フォルダ監視の開始処理の結果 (UI/ログへの送信用)
-#[derive(Debug, Clone, serde::Serialize)]
+#[derive(Debug, Clone, PartialEq, serde::Serialize)]
 pub enum StartResult {
     Success,                // フォルダ監視の開始に成功
     AlreadyRunning,         // 既に監視が開始している
@@ -348,7 +348,7 @@ impl ToNotify for StartResult {
 
 
 /// フォルダ監視の停止処理の結果 (UI/ログへの送信用)
-#[derive(Debug, Clone, serde::Serialize)]
+#[derive(Debug, Clone, PartialEq, serde::Serialize)]
 pub enum StopResult {
     Success,        // フォルダ監視を終了
     AlreadyStopped, // 既に停止中
