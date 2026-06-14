@@ -125,6 +125,9 @@ impl AppNotifier {
 
 
     /// UIへ情報を送信する
+    /// 
+    /// ダイアログ、デスクトップ、GUIログ、コンソール に送られる。 
+    /// どれに送信するかは、ToNotifyを実装するときに設定する。 
     pub fn notify(&self, event: &impl ToNotify) {
 
         // 送信用のデータ型に変換
