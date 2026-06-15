@@ -4,6 +4,8 @@
   "version": "0.1.0",
   "identifier": "com.conaca.workfile-backupper",
   "build": {
+    "beforeDevCommand": "esbuild src/main.ts --bundle --format=esm --outfile=src/main.js --watch",
+    "beforeBuildCommand": "esbuild src/main.ts --bundle --format=esm --outfile=src/main.js",
     "frontendDist": "../src"
   },
   "app": {

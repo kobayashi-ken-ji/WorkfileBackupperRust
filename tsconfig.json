@@ -1,0 +1,21 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "ESNext",
+    "lib": ["ES2022", "DOM", "DOM.Iterable"],
+    "skipLibCheck": true,
+
+    /* esbuild環境（Node.jsなし）でエラーを出さないための必須設定 */
+    "moduleResolution": "bundler",
+    "allowImportingTsExtensions": true,  // .tsをインポート可能にする (例 ～from "./types.ts";)
+    "resolveJsonModule": true,
+    "noEmit": true,     // 標準の tscコンパイラを無効化
+
+    /* 厳格な型チェック（バグを事前に100%検知するための設定） */
+    "strict": true,
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
+    "noImplicitReturns": true
+  },
+  "include": ["src/**/*.ts", "global.d.ts"]
+}

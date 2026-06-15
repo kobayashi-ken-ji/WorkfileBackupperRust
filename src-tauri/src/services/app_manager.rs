@@ -182,7 +182,7 @@ impl AppManager {
         // 「ファイル未保存時間」の計測用スレッド作成
         // 計測しない場合は None
         let timer_tx = if config.is_notify_unsaved {
-            let tx = timer::run_timer(config.notify_interval, unsaved_notifier);
+            let tx = timer::run_timer(config.notify_interval as u64, unsaved_notifier);
             Some(tx)
         } else {
             None

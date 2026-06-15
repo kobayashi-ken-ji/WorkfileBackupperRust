@@ -3,6 +3,7 @@
 use std::sync::Mutex;
 use std::sync::Arc;
 use std::path::{Path, PathBuf};
+use ts_rs::TS;
 use crate::utilities::ResutlErrPrint;
 use crate::utilities::SafeMutex;
 
@@ -11,7 +12,7 @@ use crate::utilities::SafeMutex;
 //=============================================================================
 
 /// 通知範囲
-#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize)]
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, TS)]
 #[serde(rename_all = "camelCase")]
 pub enum NotifyRange {
     Dialog,     // コンソール + GUIログ + ダイアログ(確実に通知)
@@ -23,7 +24,7 @@ pub enum NotifyRange {
 
 
 /// 通知レベル (GUIログへ表示する文字色)
-#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize)]
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, TS)]
 #[serde(rename_all = "camelCase")] // JSでは「info, error, remark」になる
 pub enum NotifyLevel {
     Error,      // 赤: エラー
@@ -36,8 +37,9 @@ pub enum NotifyLevel {
 //=============================================================================
 
 /// UIへの送信用のデータ型
-#[derive(Debug, Clone, PartialEq, serde::Serialize)]
+#[derive(Debug, Clone, PartialEq, serde::Serialize, TS)]
 #[serde(rename_all = "camelCase")]
+#[ts(export, export_to = "../../src/types.ts")]
 pub struct NotifyPayload {
     pub level: NotifyLevel,   // ユーザーへの通知レベル
     pub range: NotifyRange,   // 通知範囲 (コンソール、ログ、デスクトップ通知、ダイアログ)

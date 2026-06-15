@@ -2,6 +2,7 @@ use std::fs;
 use std::path::PathBuf;
 use tauri::AppHandle;
 use tauri::Manager;
+use ts_rs::TS;
 use crate::models::notify::ConfigError;
 
 /// 設定ファイルの名前
@@ -9,13 +10,23 @@ use crate::models::notify::ConfigError;
 const CONFIG_FILE_NAME: &str = "config.json";
 
 
+/*
+    TSへ送信するための設定
+    #[derive(serde::Serialize, serde::Deserialize, TS)]     シリアライズ化(JSON化)
+    #[serde(...)]  シリアライズ時、JSに合わせてキャメルケース化
+    #[ts(...)]     型定義ファイルを出力する設定
+
+    > cargo test --lib を行うと型定義ファイルが生成される
+*/
+
 /// アプリ全体のユーザー設定
 /// 
 /// * デフォルト値で生成する機能
 /// * OSに合わせた場所へ、JSONで読み書きする機能
 /// * 設定値のバリデーションチェック機能
-#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]  // JSONとして渡すため、Serializeを付与
-#[serde(rename_all = "camelCase")]  // シリアライズ時、JSに合わせてキャメルケース化
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export, export_to = "../../src/types.ts")]
 pub struct Config {
 
     // バックアップ設定
@@ -28,7 +39,7 @@ pub struct Config {
     // デスクトップ通知の設定
     pub is_notify: bool,            // バックアップ情報を通知する
     pub is_notify_unsaved: bool,    // ファイル未保存時間を通知する
-    pub notify_interval: u64,       // 未保存時間の通知間隔 (分)
+    pub notify_interval: u32,       // 未保存時間の通知間隔 (分)
 
     // アプリ起動時の設定
     pub is_shown: bool,             // アプリ起動時にウィンドウを表示する
