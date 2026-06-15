@@ -1,6 +1,6 @@
 use std::sync::Mutex;
 use crate::models::config::Config;
-use crate::utilities::lock_mutex;
+use crate::utilities::SafeMutex;
 
 
 /// TauriのStateに設定値を登録するための構造体
@@ -16,12 +16,12 @@ impl ConfigState {
     }
 
     /// 値を消費してStateへ上書きする
-    pub fn write(&self, config: Config) {
-        * lock_mutex(&self.config) = config;
+    pub fn set(&self, config: Config) {
+        * self.config.safe_lock() = config;
     }
     
     /// Stateから値をクローンする
-    pub fn load(&self) -> Config {
-        lock_mutex(&self.config).clone()
+    pub fn get(&self) -> Config {
+        self.config.safe_lock().clone()
     }
 }

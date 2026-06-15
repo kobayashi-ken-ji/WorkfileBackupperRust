@@ -5,12 +5,16 @@ use std::path::{Path};
 /// 「バックアップ対象かどうか」の判定機
 pub struct TargetChecker {
     all_files_enabled: bool,        // 「全てのファイル」チェックボックスの値
-    extensions: HashSet<OsString>,  // 「拡張子で指定」のリスト
+    extensions: HashSet<OsString>,  // 「拡張子で指定」の入力欄の値
 }
 
 impl TargetChecker {
 
     /// Configの値を受け取り、判定用に加工
+    /// 
+    /// # 引数
+    /// * `all_files_enabled` - 「全てのファイル」チェックボックスの値
+    /// * `extensions` - 「拡張子で指定」の入力欄の値
     pub fn new(all_files_enabled: bool, extensions: &[String]) -> Self {
 
         // 小文字化 + OsString化

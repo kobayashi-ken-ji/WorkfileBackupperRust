@@ -4,7 +4,7 @@ use std::sync::Mutex;
 use std::sync::Arc;
 use std::path::{Path, PathBuf};
 use crate::utilities::ResutlErrPrint;
-use crate::utilities::lock_mutex;
+use crate::utilities::SafeMutex;
 
 //=============================================================================
 // 通知方法の選択肢
@@ -47,7 +47,8 @@ pub struct NotifyPayload {
 
 
 /// 送信用データ型への変換機能
-/// ※これを実装した型は Notifier で送信できる
+/// 
+/// このトレイトを実装した型は Notifier で送信できる。 
 pub trait ToNotify {
 
     /// UIへの送信用の型に変換
@@ -63,7 +64,7 @@ pub trait ToNotify {
 // テストバイナリにはそれが含まれない為、
 // テスト起動直後に STATUS_ENTRYPOINT_NOT_FOUND が発生してしまう。
 
-/// 送信機の本番/モックを切替え可能にする
+/// 送信機の本番・モックを1つの型で受け入れる
 #[derive(Clone)]
 pub enum Notifier {
     #[cfg(not(test))]
@@ -98,7 +99,7 @@ impl MockNotifier {
 
     /// 送信用型に変換し、Vecフィールドに追加する
     pub fn notify(&self, event: &impl ToNotify) {
-        let mut log = lock_mutex(&self.log);
+        let mut log = self.log.safe_lock();
         log.push(event.to_payload());
     }
 }
@@ -206,7 +207,9 @@ impl AppNotifier {
 
 
     /// デスクトップ通知をする
-    /// ※インストーラを使用しない場合、アプリ名がPowerShellになる
+    /// 
+    /// Windowsでは、インストーラを使用しない場合は表示されない。
+    /// デバッグ中はアプリ名がPowerShellになる。
     fn desktop(&self, payload: NotifyPayload) {
         use tauri_plugin_notification::NotificationExt;
 

@@ -135,8 +135,8 @@ impl Config {
 
     /// 設定値が有効かをチェック
     /// 
-    /// フォルダ監視の開始前に実行する必要がある
-    /// パスフィールドを正規化し上書きするため、mut が必要
+    /// フィールドの PathBuf の正規化も行う。 
+    /// フォルダ監視の開始前に実行する必要がある。 
     pub fn validate(&mut self) -> Result<(), ConfigError> {
         use ConfigError::*;
 

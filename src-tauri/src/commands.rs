@@ -30,14 +30,17 @@ pub fn get_config(
     }
 
     // Stateに設定を上書き
-    config_state.write(config.clone());
+    config_state.set(config.clone());
 
     config
 }
 
 
 /// 「開始」ボタンの処理
-/// 戻り値 - Ok:開始した, Err:開始できなかった
+/// 
+/// # 戻り値
+/// * `Ok(())` - 開始成功
+/// * `Err(())` - 開始失敗 (停止中のまま)
 #[tauri::command]
 pub async fn start_watching(
     config_state: State<'_, ConfigState>, app_manager: State<'_, AppManager>,
@@ -87,7 +90,7 @@ pub async fn start_watching(
     }
 
     // Stateに設定値を上書き
-    config_state.write(config.clone());
+    config_state.set(config.clone());
 
     // 開始処理を呼出し
     let result = app_manager.start(config, notifier, unsaved_notifier);
@@ -103,6 +106,11 @@ pub async fn start_watching(
 
 
 /// 「終了」ボタンの処理
+/// 
+/// # 戻り値
+/// JavaScriptでawaitするためにResult型になっている
+/// * `Ok(())` - 停止成功
+/// * `Err(())` - 発生しない、必ずOkが返る
 #[tauri::command]
 pub async fn stop_watching(
     app: tauri::AppHandle, config_state: State<'_, ConfigState>,
@@ -116,7 +124,7 @@ pub async fn stop_watching(
     let result = app_manager.stop().await;
 
     // Stateから設定値を取得
-    let is_desktop_notify = config_state.load().is_notify;
+    let is_desktop_notify = config_state.get().is_notify;
 
     // 結果をUIへ送信
     let notifier = AppNotifier::new(&app, is_desktop_notify);

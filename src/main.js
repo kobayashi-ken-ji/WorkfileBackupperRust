@@ -2,20 +2,13 @@
 // グローバル変数
 //=============================================================================
 
-// Tauriの通信用関数
+// Tauriの関数
 const { invoke } = window.__TAURI__.core;
-
-// Tauriのイベント用関数 listen
 const { listen } = window.__TAURI__.event;
-
 const { open } = window.__TAURI__.dialog;
 const { getCurrentWindow, LogicalSize } = window.__TAURI__.window;
 
-// 現在のウィンドウオブジェクトを取得
-const { getCurrentWebviewWindow } = window.__TAURI__.webviewWindow;
-const appWindow = getCurrentWebviewWindow();
-
-/** getElementById のリスト */
+/** ドキュメントの要素リスト */
 const DOM = {
     // 設定の読込中のグレーアウト
     loadingOverlay  : document.getElementById("loading-overlay"),
@@ -49,7 +42,7 @@ const DOM = {
 };
 
 //=============================================================================
-// 起動時に実行する処理
+// 起動時の処理を実行
 //=============================================================================
 
 (async () => {
@@ -58,16 +51,129 @@ const DOM = {
     // 各ボタンにイベントリスナーを設定
     DOM.startBtn.addEventListener("click", onStartButton);
     DOM.stopBtn.addEventListener("click", onStopButton);
-    DOM.sourceBtn.addEventListener("click", ()=>onFolderSelectButton(DOM.sourcePath, DOM.sourceBtn));
-    DOM.destinationBtn.addEventListener("click", ()=>onFolderSelectButton(DOM.destinationPath, DOM.destinationBtn));
+    DOM.sourceBtn.addEventListener("click", ()=>onFolderSelectButton(DOM.sourcePath));
+    DOM.destinationBtn.addEventListener("click", ()=>onFolderSelectButton(DOM.destinationPath));
     DOM.fileType.addEventListener("change", onFileType);
     DOM.isNotifyUnsaved.addEventListener("change", onIsNotifyUnsaved);
+
     await initEventListener();
     loadConfig();
 })();
 
 //=============================================================================
-// 関数
+// ボタンが押されたときの処理
+//=============================================================================
+
+/** 「拡張子の入力欄」の可視/不可視を切替え */
+async function onFileType() {
+    const ByExtensions = (DOM.fileType.value == "by-extensions");
+    DOM.extensions.hidden = !ByExtensions;
+    DOM.fileTypeTip.hidden = !ByExtensions;
+}
+
+
+/** 「ファイル未保存の通知」の可視/不可視を切替え */
+async function onIsNotifyUnsaved() {
+    DOM.notifyIntervalDiv.hidden = !DOM.isNotifyUnsaved.checked;
+}
+
+
+/** 
+ * フォルダ選択ボタンが押されたとき
+ * @param {HTMLElement} pathInput 入力ボックス(選択されたフォルダパスの反映先)
+ */
+async function onFolderSelectButton(pathInput) {
+
+    try {
+        // フォルダ選択ダイアログを開く
+        const selected = await open({
+            directory: true,    // フォルダ選択モード
+            multiple: false,    // 複数選択を無効
+        });
+
+        // null以外 → 入力ボックスへ反映
+        if (selected)
+            pathInput.value = selected;
+
+    } catch(error) {
+        console.error("ダイアログの起動に失敗:", error);
+    }
+}
+
+
+/** 「開始」ボタンが押されたとき */
+async function onStartButton() {
+
+    // 開始ボタン無効化
+    DOM.startBtn.disabled = true;
+    
+    // プルダウンの値を取得
+    const allFilesEnabled = (DOM.fileType.value == "all-files-enabled");
+
+    // 拡張子を取得し、文字列→配列へ変換
+    const extensionsArray = DOM.extensions.value
+        .split(/[\s,]/)                 // スペース(連続含む) or カンマ で分割
+        .map(ext => ext.trim())         // 前後の空白を削除
+        .filter(ext => ext.length > 0); // 空文字は除外
+
+    // 未保存の通知間隔
+    const notifyInterval = (()=>{
+
+        // 文字列 → 整数値 (NoNは0へ)
+        let num = parseInt(DOM.notifyInterval.value, 10) || 0;
+
+        // 0未満を排除 (Rust側のu64型に合わせる)
+        return (num < 0) ? 0 : num;
+    })();
+
+    // HTMLの値を取得、Config構造体に合わせて格納
+    const config = {
+        sourcePath      : DOM.sourcePath.value,
+        destinationPath : DOM.destinationPath.value,
+        recursive       : DOM.recursive.checked,
+        allFilesEnabled : allFilesEnabled,
+        extensions      : extensionsArray,
+        isNotify        : DOM.isNotify.checked,
+        isNotifyUnsaved : DOM.isNotifyUnsaved.checked,
+        notifyInterval  : notifyInterval,
+        isShown         : DOM.isShown.checked,
+        autoStart       : DOM.autoStart.checked,
+    };
+
+    try {
+        // Rust側の関数を呼び出す
+        const response = await invoke("start_watching", {config: config});
+        
+        // RustからOkが返った場合
+        DOM.stopBtn.disabled = false;
+
+    } catch (error) {
+
+        // RustからErrが返った場合
+        DOM.startBtn.disabled = false;
+        console.log("開始ボタン失敗: "+ error);
+    }
+}
+
+
+/** 「停止」ボタンが押されたとき */
+async function onStopButton() {
+
+    // 停止ボタン無効化
+    DOM.stopBtn.disabled = true;
+
+    try {
+        await invoke("stop_watching");
+        DOM.startBtn.disabled = false;
+
+    } catch (error) {
+        DOM.stopBtn.disabled = false;
+        console.log("停止ボタン失敗: "+ error);
+    }
+}
+
+//=============================================================================
+// 起動時の処理
 //=============================================================================
 
 /** 画面サイズを自動調整する */
@@ -80,62 +186,6 @@ async function resizeWindowToContent() {
     // 現在のウィンドウを取得し、サイズを適用
     const window = getCurrentWindow();
     await window.setSize(new LogicalSize(width, height));
-}
-
-
-/** 拡張子入力の可視/不可視を切替え */
-async function onFileType() {
-    const ByExtensions = (DOM.fileType.value == "by-extensions");
-
-    // // プルダウン部分
-    // (ByExtensions)
-    //     ? DOM.extensions.classList.remove("invisible")
-    //     : DOM.extensions.classList.add("invisible");
-
-    // // ヒント部分
-    // (ByExtensions)
-    //     ? DOM.fileTypeTip.classList.remove("invisible")
-    //     : DOM.fileTypeTip.classList.add("invisible");
-
-    // DOM.extensions.disabled = !ByExtensions;
-    DOM.extensions.hidden = !ByExtensions;
-    DOM.fileTypeTip.hidden = !ByExtensions;
-
-}
-
-
-/** 「ファイル未保存の通知」の可視/不可視を切替え */
-async function onIsNotifyUnsaved() {
-
-    // 時間指定部分を切替え
-    // (DOM.isNotifyUnsaved.checked)
-    //     ? DOM.notifyIntervalDiv.classList.remove("invisible")
-    //     : DOM.notifyIntervalDiv.classList.add("invisible");
-
-    DOM.notifyIntervalDiv.hidden = !DOM.isNotifyUnsaved.checked;
-}
-
-
-/** フォルダ選択ボタンが押されたとき */
-async function onFolderSelectButton(pathInput, selectButton) {
-
-    console.log(pathInput);
-    console.log(selectButton);
-
-    try {
-        // フォルダ選択ダイアログを開く
-        const selected = await open({
-            directory: true,    // フォルダ選択モード
-            multiple: false,    // 複数選択は無効
-        });
-
-        // null以外 → 入力ボックスへ反映
-        if (selected)
-            pathInput.value = selected;
-
-    } catch(error) {
-        console.error("ダイアログの起動に失敗:", error);
-    }
 }
 
 
@@ -175,137 +225,12 @@ async function loadConfig() {
     onFileType();
     onIsNotifyUnsaved();
 
-    // 自動開始設定の処理
+    // 自動開始が設定されていれば、起動時に開始
     if (config.autoStart) onStartButton();
 }
 
 
-/** 「開始」ボタンが押されたとき */
-async function onStartButton() {
-
-    // 処理開始の表示
-    // DOM.log.innerText = "開始処理中...";
-    DOM.startBtn.disabled = true;
-    
-    // プルダウンの値を取得
-    const allFilesEnabled = (DOM.fileType.value == "all-files-enabled");
-
-    // 拡張子を取得し、文字列→配列へ変換
-    const extensionsArray = DOM.extensions.value
-        .split(/[\s,]/)                 // スペース(連続含む) or カンマ で分割
-        .map(ext => ext.trim())         // 前後の空白を削除
-        .filter(ext => ext.length > 0); // 空文字は除外
-
-    // 未保存の通知間隔
-    const notifyInterval = (()=>{
-
-        // 文字列 → 整数値 (NoNは0へ)
-        let num = parseInt(DOM.notifyInterval.value, 10) || 0;
-
-        // 0未満を排除 (Rust側のu64型に合わせる)
-        return (num < 0) ? 0 : num;
-    })();
-
-    // HTMLの値を取得、Config構造体に合わせて格納
-    const config = {
-        sourcePath      : DOM.sourcePath.value,
-        destinationPath : DOM.destinationPath.value,
-        recursive       : DOM.recursive.checked,
-        allFilesEnabled : allFilesEnabled,
-        extensions      : extensionsArray,
-        isNotify        : DOM.isNotify.checked,
-        isNotifyUnsaved : DOM.isNotifyUnsaved.checked,
-        notifyInterval  : notifyInterval,
-        isShown         : DOM.isShown.checked,
-        autoStart       : DOM.autoStart.checked,
-    };
-
-    try {
-        // Rust側の関数を呼び出す
-        // 引数名はRust側と一致させる ※ オブジェクトで指定
-        const response = await invoke("start_watching", {config: config});
-        
-        // RustからOkが返った場合
-        DOM.stopBtn.disabled = false;
-
-    } catch (error) {
-
-        // RustからErrが返った場合
-        DOM.startBtn.disabled = false;
-        console.log("開始ボタン失敗: "+ error);
-    }
-}
-
-
-/** 「停止」ボタンが押されたとき */
-async function onStopButton() {
-
-    // 処理開始の表示
-    // DOM.log.innerText = "停止処理中...";
-    DOM.stopBtn.disabled = true;
-
-    try {
-        // Rust側の関数を呼び出す
-        // 引数名はRust側と一致させる ※ オブジェクトで指定
-        await invoke("stop_watching");
-        DOM.startBtn.disabled = false;
-
-        // RustからOkが返った場合
-        // statusEl.innerText = response;
-        // statusEl.style.color = "green";
-
-    } catch (error) {
-        DOM.stopBtn.disabled = false;
-        console.log("停止ボタン失敗: "+ error);
-        // RustからErrが返った場合
-        // statusEl.innerText = `エラー: ${error}`;
-        // statusEl.style.color = "red";
-    }
-}
-
-
-// const startButton = document.getElementById("start-btn");
-// startButton.addEventListener("click", async () => {
-
-//     const pathInput = document.getElementById("source").value;
-//     // const extInput = document.getElementById("ext").value;
-//     const statusEl = document.getElementById("log");
-    
-//     statusEl.innerText = "処理中...";
-
-//     try {
-//         // Rust側の関数を呼び出す
-//         // 引数名はRust側と一致させる
-//         const response = await invoke("start_watching");
-
-//         // const response = await invoke("start_watching", {
-//         //     path: pathInput,
-//         //     extension: extInput
-//         // });
-
-//         // RustからOkが返った場合
-//         // statusEl.innerText = response;
-//         // statusEl.style.color = "green";
-
-//     } catch (error) {
-
-//         // RustからErrが返った場合
-//         // statusEl.innerText = `エラー: ${error}`;
-//         // statusEl.style.color = "red";
-//     }
-// });
-
-
-// 「トレイに格納」ボタンが押されたとき
-// document.getElementById("hide-btn").addEventListener("click", async () => {
-//     await appWindow.hide();
-// });
-
-//=============================================================================
-// Rustから受信する
-//=============================================================================
-
-/** Rustからのイベントのリスナーを登録する */
+/** 「Rust側でemitした時」に実行する処理を登録 */
 async function initEventListener() {
 
     // Rust側のイベント名と合わせる
@@ -317,8 +242,7 @@ async function initEventListener() {
         }
 
         // Rustからの送信されたデータを取り出す
-        const dto = event.payload;
-        const {level, title, body} = dto;
+        const {level, title, body} = event.payload;
 
         // 現在時刻を文字列化 (HH:MM 形式)
         const date = new Date().toLocaleTimeString([],

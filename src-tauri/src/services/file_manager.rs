@@ -1,3 +1,5 @@
+//! 処理中のファイルパスとタスクを一元管理する
+
 use std::path::{Path, PathBuf};
 use std::collections::HashSet;
 use std::sync::{Arc, Mutex};
@@ -5,13 +7,13 @@ use tokio::task::JoinSet;
 use tokio::runtime;
 use futures::future::BoxFuture;
 
-use crate::utilities::{ResutlErrPrint, lock_mutex};
+use crate::utilities::{ResutlErrPrint, SafeMutex};
 
 //=============================================================================
-// 本番/モック の切替え
+// 本番/モック の切替え機能
 //=============================================================================
 
-/// 本番・モックを切替え
+/// 本番・モックを1つの型で受け入れる
 pub enum FileManager {
     Real(ActiveFileManager),
     Mock(MockFileManager),
@@ -38,14 +40,34 @@ impl FileManager {
 
 
 /// ActiveFileManager のテスト用モック
+/// 
+/// # 例
+/// ```
+/// # use std::path::Path;
+/// # use futures::FutureExt;
+/// # use workfile_backupper_lib::services::file_manager::{FileManager, MockFileManager};
+/// # use workfile_backupper_lib::utilities::SafeMutex;
+/// 
+/// // Arcをクローンしておくことで、別の場所から登録内容を確認できる
+/// let mock = MockFileManager::new();
+/// let log = mock.log.clone();
+/// let file_manager = FileManager::Mock(mock);
+/// 
+/// // ファイルを登録
+/// let path = Path::new("sample.txt");
+/// file_manager.execute(path, |_path| {async {}.boxed()});
+/// 
+/// // 登録されたファイルを確認
+/// assert_eq!(log.safe_lock()[0], path);
+/// ```
 pub struct MockFileManager {
-    pub paths: Arc<Mutex<Vec<PathBuf>>>,
+    pub log: Arc<Mutex<Vec<PathBuf>>>,
 }
 
 impl MockFileManager {
 
     pub fn new() -> Self {
-        Self { paths: Arc::new(Mutex::new(Vec::new())) }
+        Self { log: Arc::new(Mutex::new(Vec::new())) }
     }
 
 
@@ -53,8 +75,8 @@ impl MockFileManager {
     pub fn execute<F>(&self, path: &Path, _callback: F)
     where F: FnOnce(PathBuf) -> BoxFuture<'static, ()> + Send + 'static
     {
-        let mut paths = lock_mutex(&self.paths);
-        paths.push(path.into());
+        let mut log = self.log.safe_lock();
+        log.push(path.into());
     }
 
 
@@ -66,12 +88,12 @@ impl MockFileManager {
 // ファイルマネージャー本体
 //=============================================================================
 
-/// 処理中のファイルを管理
+/// 処理中のファイルとタスクを管理
 /// 
 /// 主な機能
-/// * 新規タスク上で指定した処理を実行
+/// * 指定した処理を新規タスク上で実行
 /// * 同じファイルへの処理重複を回避
-/// * 停止操作時に、全処理の終了を待機
+/// * 停止操作時に、全タスクの終了を待機
 pub struct ActiveFileManager  {
 
     // ※ std版のMutex
@@ -131,7 +153,7 @@ impl ActiveFileManager  {
     {
         // 処理中ファイルのリストを排他ロックする
         let files = self.active_files.clone();
-        let mut lock_files = lock_mutex(&files);
+        let mut lock_files = files.safe_lock();
 
         // ファイルが既に処理中の場合はスキップ
         if lock_files.contains(path) {
@@ -211,7 +233,7 @@ impl Drop for FileTaskGuard {
     fn drop(&mut self) {
 
         // 処理中リストをロックし、リストからファイルを削除
-        let mut lock_files = lock_mutex(&self.active_files);
+        let mut lock_files = self.active_files.safe_lock();
         lock_files.remove(&self.path);
     }
 }
@@ -264,7 +286,7 @@ mod tests {
                 }.boxed()
             });
 
-            // タスク数を検証 (期待値以上」かを検証)
+            // タスク数を検証 (「期待値以上」かを検証)
             //      [!] TokioのMutexは、処理が終わっても len() 値は減らない
             //      join_next().await で結果を取り出すと減る
             let result_length = manager.tasks.blocking_lock().len();
@@ -272,7 +294,7 @@ mod tests {
             // println!("処理中のタスク数: {result_length}, {expected_length}");
 
             // ファイル数を検証 (処理が終わり次第、len() 値が減る)
-            let active_files = lock_mutex(&manager.active_files);
+            let active_files = manager.active_files.safe_lock();
             let result_length = active_files.len();
             assert_eq!(result_length, expected_length, "処理中のファイル数");
             // println!("処理中のファイル数: {result_length}, {expected_length}");

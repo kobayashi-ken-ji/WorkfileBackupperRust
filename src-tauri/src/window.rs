@@ -9,7 +9,7 @@ use crate::utilities::ResutlErrPrint;
 // Stateに登録するトレイアイコン項目
 //=============================================================================
 
-/// トレイアイコンメニュー内の項目
+/// トレイアイコンメニューの項目を操作
 pub struct TrayMenuItems {
     pub version : MenuItem<tauri::Wry>,
     pub show    : MenuItem<tauri::Wry>,
@@ -20,23 +20,23 @@ pub struct TrayMenuItems {
 
 impl TrayMenuItems {
     
-    /// アプリ起動時の表示切替え
+    /// アプリ起動時の有効/無効切替
     pub fn on_set_up(&self) {
         let _ = self.stop.set_enabled(false);
     }
 
-    /// 「開始/停止を押した時」の表示切替
+    /// 「開始/停止を押した時」の有効/無効切替
     pub fn onstart_or_onstop(&self) {
         let _ = self.start.set_enabled(false);
         let _ = self.stop.set_enabled(false);
     }
 
-    /// 「開始成功時」または「停止失敗時」の表示切替
+    /// 「開始成功時」または「停止失敗時」の有効/無効切替
     pub fn startok_or_stoperr(&self) {
         let _ = self.stop.set_enabled(true);
     }
 
-    /// 「開始失敗時」または「停止成功時」の表示切替
+    /// 「開始失敗時」または「停止成功時」の有効/無効切替
     pub fn starterr_or_stopok(&self) {
         let _ = self.start.set_enabled(true);
     }
@@ -46,7 +46,9 @@ impl TrayMenuItems {
 // トレイアイコン
 //=============================================================================
 
-/// トレイアイコンを生成する
+/// トレイアイコンを生成し、Stateに登録
+/// 
+/// tauri::Builder::setup() に渡す処理。
 pub fn init_tray(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
 
     // メニューの作成

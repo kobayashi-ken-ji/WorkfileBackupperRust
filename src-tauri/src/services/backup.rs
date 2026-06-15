@@ -6,11 +6,12 @@ use crate::models::notify::BackupResult;
 
 /// 指定ファイルをバックアップ
 /// 
-/// コピーしたファイルには、[YYYYMMDD_HHMMSS]形式のタイムスタンプが付与される
-/// 「サブフォルダを含める」に対応 (フォルダが無ければ生成される)
-/// フォルダを指定すると CopyFailed を返す
+/// コピーしたファイルには、[YYYYMMDD_HHMMSS]形式のタイムスタンプが付与される。 
+/// 「サブフォルダを含める」に対応。(コピー先にフォルダが無ければ生成する) 
+/// target にフォルダを指定すると CopyFailed を返す。 
 /// 
 /// # 引数
+/// すべて絶対パスで指定する。
 /// * `source` - コピー元フォルダ
 /// * `destination` - コピー先フォルダ
 /// * `target` - コピーするファイル (コピー元フォルダ以下の階層にあること)
@@ -108,8 +109,8 @@ pub fn back_up_file(source: &Path, destination: &Path, target: &Path) -> BackupR
 
 /// コピー先のフォルダパスを算出し、フォルダを生成
 /// 
-/// 「サブフォルダを含む」に対応するための機能
-/// 問題発生時は destination をそのまま返す
+/// 「サブフォルダを含む」に対応するための処理。 
+/// 問題発生時は destination をそのまま返す。 
 /// 
 /// # 引数
 /// * `source` - コピー元フォルダ
@@ -117,10 +118,11 @@ pub fn back_up_file(source: &Path, destination: &Path, target: &Path) -> BackupR
 /// * `target` - コピーするファイル (コピー元フォルダ以下の階層にあること)
 /// 
 /// # 例
-/// コピー元フォルダ: /source/ 
-/// コピー先フォルダ: /dest/ 
-/// コピーするファイル: /source/folder/file.txt 
-/// 戻り値: /dest/folder/  ※ 「folder」を検出し、コピー先に結合
+/// 以下は「folder」を検出し、コピー先に結合している例。
+/// * コピー元フォルダ: /source/ 
+/// * コピーするファイル: /source/folder/file.txt 
+/// * コピー先フォルダ: /dest/ 
+/// * 戻り値: /dest/folder/
 /// 
 fn create_destination_folder(source: &Path, destination: &Path, target: &Path)
     -> PathBuf {

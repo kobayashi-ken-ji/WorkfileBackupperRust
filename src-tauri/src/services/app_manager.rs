@@ -18,7 +18,7 @@ use crate::services::target_checker::TargetChecker;
 use crate::services::wait::wait_for_file_writing;
 use crate::services::backup;
 use crate::services::timer;
-use crate::utilities::{ResutlErrPrint, lock_mutex};
+use crate::utilities::{ResutlErrPrint, SafeMutex};
 
 //=============================================================================
 // new_debouncer() の引数
@@ -90,7 +90,7 @@ impl BackupEventHandler {
 
 
     /// ファイル書込み終了待ち + バックアップ処理
-    /// タスクを生成し、その中で非同期に実行する
+    /// タスクを生成し、その中で非同期に実行する。 
     fn wait_and_backup(&self, path: PathBuf) {
 
         // move用に複製
@@ -150,7 +150,9 @@ pub struct AppManager {
 impl AppManager {
 
     /// コンストラクタ 
-    /// Tauri側のTokioランタイムを渡す
+    /// 
+    /// # 引数
+    /// * `tokio_handle` - Tauri側のランタイムを渡す (重複生成をさけるため)
     pub fn new(tokio_handle: &tokio::runtime::Handle) -> Self {
 
         let file_manager =
@@ -205,7 +207,7 @@ impl AppManager {
         //-------------------------------------------------
         
         // 処理中ファイルのリストを排他ロックする
-        let mut lock_debouncer = lock_mutex(&self.debouncer);
+        let mut lock_debouncer = self.debouncer.safe_lock();
 
         // 既に開始していたら終了 (二重起動防止)
         if lock_debouncer.is_some() {
@@ -232,8 +234,8 @@ impl AppManager {
         use StartResult::*;
 
         // デバウンサを生成
-        // フォルダ内を監視し、変更発生時に引数関数を実行する
-        // 指定時間以上イベント通知が途切れるのを待つ
+        // フォルダ内を監視し、変更発生時に引数関数を実行する。
+        // 指定時間以上イベント通知が途切れるのを待つ。
         let debouncer = new_debouncer(Duration::from_secs(5), None, handler);
 
         // デバウンサ生成のエラー処理
@@ -282,7 +284,7 @@ impl AppManager {
         // ブロックでドロップさせている
         {
             // ロック解除 + ポイズンエラー処理
-            let mut lock_debouncer = lock_mutex(&self.debouncer);
+            let mut lock_debouncer = self.debouncer.safe_lock();
 
             // 既に停止中かチェック
             if lock_debouncer.is_none() {
@@ -366,14 +368,14 @@ mod tests {
 
         // モックを生成し、Arcをクローンしておく
         let mock = MockFileManager::new();
-        let paths = mock.paths.clone();
+        let file_manager_log = mock.log.clone();
         
         // デバウンサーに渡す構造体(モック)を生成
         let handler = BackupEventHandler {
             file_manager     : Arc::new(FileManager::Mock(mock)),
             target_checker   : TargetChecker::new(false, &extensions),
             notifier         : Notifier::Mock(MockNotifier::new()),
-            timer_tx         : Some(run_timer(10, Notifier::Mock(MockNotifier::new()))),
+            timer_tx         : None,
             source_path      : source_path.clone(),
             destination_path : destination_path.clone(),
         };
@@ -413,21 +415,21 @@ mod tests {
             //-------------------------------------------------
 
             // file_managerに1件追加されたか検証
-            let mut paths = lock_mutex(&paths);
+            let mut log = file_manager_log.safe_lock();
 
             // バックアップ件数が期待通りか
-            assert_eq!(paths.len(), expected_count, "バックアップ件数が不一致: {:?}", full_path);
+            assert_eq!(log.len(), expected_count, "バックアップ件数が不一致: {:?}", full_path);
 
             // パス名が等しいか
-            if paths.len() > 0 {
-                assert_eq!(paths[0], full_path);
+            if log.len() > 0 {
+                assert_eq!(log[0], full_path);
             }
             
-            // println!("{}", paths.len());
-            // println!("{:?}", paths);
+            // println!("{}", log.len());
+            // println!("{:?}", log);
 
             // 次のテストのために空にする
-            paths.clear();
+            log.clear();
         }
     }
 
@@ -518,7 +520,7 @@ mod tests {
                 config, notifier.clone(), unsaved_notifier.clone());
 
             // 通知された値を取得
-            let log_payload = lock_mutex(&notifier_log).last().unwrap().clone();
+            let log_payload = notifier_log.safe_lock().last().unwrap().clone();
 
             // 検証 (戻り値・通知値)
             assert_eq!(&result, &expected_return, "{comment}");
@@ -562,7 +564,7 @@ mod tests {
 
         // 通知された値を取得
         let comment = "フォルダ監視中にファイル変更を発生させるテスト";
-        let log_payload = lock_mutex(&notifier_log).last().unwrap().clone();
+        let log_payload = notifier_log.safe_lock().last().unwrap().clone();
         let expected = BackupResult::Copied("".into()).to_payload();
 
         // バックアップされたファイル名にはタイムスタンプが付与されるため、概要文で比較

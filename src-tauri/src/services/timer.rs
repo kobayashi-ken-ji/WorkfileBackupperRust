@@ -6,12 +6,12 @@ use crate::models::notify::{Notifier, TimerInfo};
 
 /// 「指定時間 経過した時」に通知する
 /// 
-/// ファイル未保存時間の通知用
-/// スレッドを生成し、経過時間を計測する。
-/// スレッドは Sender(戻り値) がドロップしたときに終了する。
+/// ファイル未保存時間の通知用。 
+/// スレッドを生成し、経過時間を計測する。 
+/// スレッドは Sender(戻り値) がドロップしたときに終了する。 
 /// 
-/// 指定時間が経過した時に、UIへ経過時間を送信する。
-/// Senderで送信を行うと、経過時間を0にリセットする。
+/// 一定時間が経過した時に、UIへ経過時間を送信する。 
+/// Senderで送信を行うと、経過時間を0にリセットする。 
 /// リセットされるまで経過時間は累積する。
 /// 
 /// # 引数
@@ -19,7 +19,8 @@ use crate::models::notify::{Notifier, TimerInfo};
 /// * `notifier`     - UIへの通知機
 /// 
 /// # 戻り値
-///     経過時間をリセットするための送信機 (ファイル保存時に使用)
+/// 経過時間をリセットするための送信機。 
+/// ファイル保存時に利用する。
 /// 
 pub fn run_timer(timeout_mins: u64, notifier: Notifier) -> Sender<()> {
     
@@ -79,45 +80,44 @@ pub fn run_timer(timeout_mins: u64, notifier: Notifier) -> Sender<()> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{models::notify::{MockNotifier, ToNotify}, utilities::lock_mutex};
+    use crate::{models::notify::{MockNotifier, ToNotify}, utilities::SafeMutex};
 
-    #[test]
-    fn test_run_timer() {
+    // TauriのTokioランタイムが必要な場合は、次のように生成可能
+    // tauri::async_runtime::block_on(async {});
+
+    #[tokio::test]
+    async fn test_run_timer() {
         
-        // テスト時はTauri側ランタイムが無いため、自動で生成してくれる
-        tauri::async_runtime::block_on(async {
+        // テスト用の通知機を生成
+        let mock_notifier = MockNotifier::new();
+        let log = mock_notifier.log.clone();
 
-            // テスト用の通知機を生成
-            let mock_notifier = MockNotifier::new();
-            let log = mock_notifier.log.clone();
+        let notifier = Notifier::Mock(mock_notifier);
 
-            let notifier = Notifier::Mock(mock_notifier);
+        {
+            // 3秒間ファイルが保存されなければ通知される
+            let tx = run_timer(3, notifier);
 
-            {
-                // 3秒間ファイルが保存されなければ通知される
-                let tx = run_timer(3, notifier);
+            // 7秒後にファイル上書き通知
+            sleep(Duration::from_secs(7)).await;
+            tx.send(()).await.unwrap();
 
-                // 7秒後にファイル上書き通知
-                sleep(Duration::from_secs(7)).await;
-                tx.send(()).await.unwrap();
+            // 4秒後に送信機が破棄される
+            sleep(Duration::from_secs(4)).await;
+        }
+        
+        // メソッド内部で notify() される値
+        let expectations = [
+            TimerInfo::Elapsed { minutes: 3 },
+            TimerInfo::Elapsed { minutes: 6 },
+            TimerInfo::Elapsed { minutes: 3 },
+        ];
 
-                // 4秒後に送信機が破棄される
-                sleep(Duration::from_secs(4)).await;
-            }
-            
-            // メソッド内部で notify() される値
-            let expectations = [
-                TimerInfo::Elapsed { minutes: 3 },
-                TimerInfo::Elapsed { minutes: 6 },
-                TimerInfo::Elapsed { minutes: 3 },
-            ];
-
-            // ログ値と期待値を比較
-            let log = lock_mutex(&log);
-            for i in 0..expectations.len() {
-                // println!("{i}: {:?}", log[i]);
-                assert_eq!(log[i], expectations[i].to_payload());
-            }
-        });
+        // ログ値と期待値を比較
+        let log = log.safe_lock();
+        for i in 0..expectations.len() {
+            // println!("{i}: {:?}", log[i]);
+            assert_eq!(log[i], expectations[i].to_payload());
+        }
     }
 }
