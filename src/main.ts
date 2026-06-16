@@ -9,7 +9,6 @@ import {Config, NotifyPayload} from "./types.ts";
 const { invoke } = window.__TAURI__.core;
 const { listen } = window.__TAURI__.event;
 const dialog = window.__TAURI__.dialog;
-const { getCurrentWindow, LogicalSize } = window.__TAURI__.window;
 
 /** ドキュメントの要素リスト */
 const DOM = {
@@ -50,7 +49,6 @@ const DOM = {
 //=============================================================================
 
 (async () => {
-    resizeWindowToContent();
 
     // 各ボタンにイベントリスナーを設定
     DOM.startBtn.addEventListener("click", onStartButton);
@@ -179,19 +177,6 @@ async function onStopButton() {
 //=============================================================================
 // 起動時の処理
 //=============================================================================
-
-/** 画面サイズを自動調整する */
-async function resizeWindowToContent() {
-
-    // コンテンツ全体の高さを取得
-    const width  = document.documentElement.scrollWidth;
-    const height = document.documentElement.scrollHeight;
-
-    // 現在のウィンドウを取得し、サイズを適用
-    const window = getCurrentWindow();
-    await window.setSize(new LogicalSize(width, height));
-}
-
 
 /** 設定ファイルを読み込む */
 async function loadConfig() {

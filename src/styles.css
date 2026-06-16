@@ -304,11 +304,19 @@ button:disabled {
     */
     height: 0;
     min-height: 100px;
+
+    /* Linux対策: Flex化し、要素が伸びた時に子要素も確実に伸びるようにする */
+    display: flex;
+    flex-direction: column;
 }
 
 /* インナー: スクロール時にパディング部分にも表示されてしまうことを避ける */
 .log-box {
-    height: 100%;
+
+    /* Linux対策: 親をはみ出さないように最小サイズを0にする */
+    min-height: 0;
+
+    /* height: 100%; */
     overflow-y: auto;
     box-sizing: border-box;
 

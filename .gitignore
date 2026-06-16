@@ -1,5 +1,5 @@
 # TypeScript化にあたり、JSファイルを成果物として除外する
-src/main.js
+*.js
 
 # Logs
 logs
