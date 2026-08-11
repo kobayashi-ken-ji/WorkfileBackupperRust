@@ -1,24 +1,21 @@
 
 /* 変数定義 */
 :root {
+    /* ログ文字色 */
     --info-color: #2e7d32;
     --remark-color: #888;
     --error-color: #d32f2f;
-    --folder-select-height: 28px;
+
+    /* ボタン色 */
     --button-bg: #007acc;
     --button-hover-bg: #005999;
-    --font-weight-default: 500;   /* Noto Sans JP 細さ対策、メイリオは500が無く、太くならずに済む */
-    --body-bg: #efefef;
-    --hedder-bg: rgb(183, 183, 189);
-    --border-default: 1px solid #ddd;
-    --shadow-default: 0px 1px 5px rgba(0, 0, 0, 0.1);
-    --side-margin: 0px 20px;
-    --main-btn-width: 120px;
 
-    /* 背景色を薄青色に調整 */
-    --body-bg: #edeef0;
-    --hedder-bg: #b8b8c0;
-    --shadow-default: 0px 1px 5px rgba(39, 39, 77, 0.1);
+    --header-bg: #7891cc;
+    --hr-border: 1px solid #ddd;
+
+    /* 改行時のマージン */
+    --newline-margin-large: 22px 0px 0px 0px;
+    --newline-margin-small: 3px 0px 0px 0px;
 }
 
 /* 
@@ -31,13 +28,13 @@
 }
 
 body {
-    font-family: "Noto Sans JP", sans-serif;
-    margin: 0;
-    background: var(--body-bg);
-    color: #333;
+    font-family: "Meiryo", "Noto Sans JP", sans-serif;
+    background: white;
+    color: black;
     font-size: 85%;
+    margin: 0;
 
-    /* ログ高さ可変用に縦並べ */
+    /* 縦並べ (ログ高さ可変のため) */
     display: flex;
     flex-direction: column;
 
@@ -63,135 +60,25 @@ h2, h3 {
     margin-top: 0px;
 }
 
+input {
+    box-sizing: border-box;
+    height: 28px;
+    padding: 0px 8px;
+    border: 1px solid #d0d0d0;
+    border-radius: 4px;
+}
 
 /* 不可視 (空白になる) */
 .invisible {
     visibility: hidden;
 }
 
-/* メインウィンドウ以外に使用する、bodyのパディング */
-.sub-window-body {
-    padding: 25px;
-}
-
 /*===========================================================================*/
-/* box (関連設定をまとめるウィンドウ) */
+/* varsion.html 用 */
 /*===========================================================================*/
 
-/* 各設定の区切り線 */
-hr {
-    border: none;
-    border-top: var(--border-default);
-    margin: 0px;
-}
-
-/* hrを左右隙間なく使うためのマージン */
-.box-inner {
-    margin: 11px 13px;   /* ウィンドウ内側の余白 */
-}
-
-/* 設定の種類名 */
-.box-title {
-    margin: var(--side-margin);
-    padding: 8px 0px;
-    font-weight: 500;
-    font-size: 115%;
-}
-
-/* 設定を種類ごとにまとめるウィンドウ */
-.box-body {
-    margin: var(--side-margin);
-    margin-bottom: 12px;        /* ウィンドウ間の余白 */
-    background-color: white;
-    padding: 0;
-    border: var(--border-default);
-    border-radius: 7px;
-    box-shadow: var(--shadow-default);
-}
-
-/*===========================================================================*/
-/* ラベル・入力UI */
-/*===========================================================================*/
-
-label {
-    display: block;
-    font-weight: var(--font-weight-default);
-}
-
-select, input {
-    height: 28px;
-    padding: 0px 8px;
-    box-sizing: border-box;
-    border: 1px solid rgb(207, 207, 207);
-    border-radius: 4px;
-}
-
-input {
-    width: 100%;
-}
-
-/* ボタン部分を改行させない */
-input[type="checkbox"],
-input[type="radio"] {
-    height: auto;
-    width: auto;
-    padding: 0px;
-}
-
-/* ブラウザエンジンによって色が異なるため指定 */
-input[type="checkbox"] {
-    accent-color: #3a3a3a;
-}
-
-/*===========================================================================*/
-/* 「バックアップするファイル」項目 */
-/*===========================================================================*/
-
-/* 横一列にするdiv用 */
-.file-type-div {
-    display: flex;
-    align-items: center;
-    gap: 14px;
-    width: 100%;
-    margin-top: 6px;
-    margin-bottom: 5px;
-}
-
-/* 直下セレクタで指定 */
-/* プルダウン部分 */
-.file-type-div > select {
-    width: 200px;
-}
-
-/* プルダウン右側の説明欄 */
-.file-type-div > div {
-    flex: 1;
-    color: #888;
-}
-
-/*===========================================================================*/
-/* 「ファイル未保存の通知」項目 */
-/*===========================================================================*/
-
-/* 横一列にするdiv用 */
-.notify-interval-div {
-    display: flex;
-    align-items: center;
-    gap: 5px;
-    width: 100%;
-    margin-top: 5px;
-    padding-left: 25px;
-    box-sizing: border-box;
-}
-
-/* 時間入力欄 */
-.notify-interval-div > input[type="number"] {
-    width: 70px;
-}
-
-/* 「分間 保存されたファイルがなければ通知」の部分 */
-.notify-interval-div > div {
-    flex: 1;
+div.version-page {
+    margin: 20px auto;
 }
 
 /*===========================================================================*/
@@ -201,19 +88,11 @@ input[type="checkbox"] {
 button {
     padding: 10px 20px;
     background: var(--button-bg);
-    font-weight: var(--font-weight-default);
+    font-weight: normal;
     color: white;
     border: none;
     cursor: pointer;
     margin: 5px;
-}
-
-
-/* 開始・終了ボタン */
-button.main {
-    width: var(--main-btn-width);
-    border-radius: 4px;
-    box-shadow: 0px 2px 3px rgba(0, 0, 0, 0.15);
 }
 
 button:hover {
@@ -225,34 +104,325 @@ button:disabled {
     background-color: #d3d3d3;
     color: #888888;
     cursor: not-allowed;    /* カーソルを禁止マークに */
-    box-shadow: none;
 }
 
-/* メインボタンの下の補足テキスト */
-.save-text {
-    margin: 0px 5px;
-    width: var(--main-btn-width);
-    text-align: center;
-    font-size: 90%;
-    color: #999;
+/*===========================================================================*/
+/* 見出し・内容 */
+/*===========================================================================*/
+
+/* 大見出し */
+div.header {
+    background-color: var(--header-bg);
+    box-sizing: border-box;
+    font-size: 140%;
+    font-weight: bold;
+    color: white;
+
+    /* 右側を丸める */
+    border-radius: 0 9999px 9999px 0;
+    width: 96%;
+    padding: 8px 20px;
+    margin: 0;
+}
+
+/* 内容 */
+div.main {
+
+    /* div自体 */
+    & {
+        margin: 0;
+        padding: 0px 35px;
+    }
+
+    /* 小見出し */
+    > h2 {
+        margin: var(--newline-margin-large);
+        padding: 0;
+        font-weight: bold;
+        font-size: 125%;
+        color: #1f1f1f;
+    }
+
+    /* 設定1つを包む (横一列) */
+    /* toggle, folder クラスは別途定義 */
+    > label {
+        display: flex;
+        align-items: center;
+        font-weight: normal;
+        margin: var(--newline-margin-large);
+    }
+
+    /* 見出しごとの区切り線 */
+    > hr {
+        border: none;
+        border-top: var(--hr-border);
+        margin: var(--newline-margin-large);
+    }
+
+    /* 拡張子の入力欄 */
+    > input.extensions {
+        margin: var(--newline-margin-small);
+        padding: 8px;
+        border-radius: 10px;
+        box-sizing: border-box;
+        height: auto;
+        width: calc(100% - 60px);
+    }
+
+    /* 通知間隔 */
+    > div.notify-interval-div {
+
+        /* div自体 */
+        & {       
+            display: flex;
+            align-items: center;
+            box-sizing: border-box;
+            margin: var(--newline-margin-small);
+            padding-left: 25px;
+            width: 100%;
+        }
+        
+        /* 間隔 入力欄 */
+        > input {
+            width: 70px;
+            margin-left: 20px;
+            margin-right: 5px;
+        }
+    }
+
+    /* 開始/終了ボタン */
+    > div.button-area {
+
+        /* div自身 */
+        & {
+            display: flex;
+            justify-content: center;
+            margin: var(--newline-margin-large);
+            margin-bottom: 10px;
+        }
+
+        > button {
+            width: 120px;
+            border-radius: 4px;
+            box-shadow: 0px 2px 3px rgba(0, 0, 0, 0.15);
+        }
+
+        > button:disabled {
+            box-shadow: none;
+        }
+    }
+}
+
+/*===========================================================================*/
+/* トグルによる「表示/非表示」の切替え */
+/*===========================================================================*/
+
+/* 拡張子入力欄 */
+label.toggle:has(#by-extensions:not(:checked)) + 
+input.extensions {
+    display: none;
+}
+
+/* 通知間隔 (横一列) */
+label.toggle:has(#is-notify-unsaved:not(:checked)) + 
+div.notify-interval-div {
+    display: none;
+}
+
+/*===========================================================================*/
+/* トグル*/
+/*===========================================================================*/
+
+/* 使用例
+    <label class="toggle">
+        ファイルの未保存を通知
+        <input type="checkbox" id="is-notify-unsaved">
+    </label>
+*/
+div.main > label.toggle > input[type="checkbox"] {
+
+    /* & → input自体 */
+    & {
+        box-sizing: border-box;
+        position: relative;
+        font-size: 17px;
+        width: 2em;
+        height: 1em;
+        padding: 0;
+        margin: 0px 3px;
+
+        /* 右詰め */
+        margin-left: auto; 
+
+        /* ラジオボタンを非表示にする */
+        appearance: none;
+        border: none;
+    }
+
+    /* バー部分:灰色 (false時) */
+    &::before {
+        content: "";
+        position: absolute;
+        background: darkgray;
+        border-radius: 0.5em;
+        margin: 0;
+        left: 0em;
+        right: 0em;
+        height: 1em;
+    }
+
+    /* バー部分:青色 (true時) */
+    &:checked::before {
+        background: var(--button-bg);
+    }
+
+    /* バー部分:ホバー時のエフェクト */
+    &:hover::before  {
+        /* 横方向, 縦方向, ぼかし, 影の大きさ, 色 */
+        box-shadow: 0 0 0px 5px rgba(0,0,0,0.08);
+    }
+
+    /* 円部分:左寄せ (false時) */
+    &::after {
+        box-sizing: border-box;
+        content: "";
+        position: absolute;
+        border-radius: 0.5em;
+        transform: translate(0%, 0%);
+        transition: all 0.1s ease-in-out;
+        margin: 0;
+        background: #e8e8e8;
+
+        /* 円をバー高さよりも小さくする */
+        --reduction: 2px;
+        left: var(--reduction);
+        top: var(--reduction);
+        bottom: var(--reduction);
+        width: calc(1em - calc(var(--reduction) * 2));
+    }
+
+    /* 円部分:右寄せ (true時) */
+    &:checked::after {
+        transform: translate(125%, 0%);
+        background: white;
+
+        /* 横方向, 縦方向, ぼかし, 影の大きさ, 色 */
+        box-shadow: 0 0 2px 1px rgba(0,0,0,0.3);
+    }
+}
+
+/*===========================================================================*/
+/* フォルダ選択ラベル */
+/*===========================================================================*/
+
+/* 使用例
+    <label class="folder" for="source-path">
+        バックアップ元
+        <input type="text" class="folder-path" readonly">
+        <button class="folder-btn">選択</button>
+    </label>
+*/
+div.main > label.folder {
+
+    /* フォルダパスのテキスト */
+    > input[type="text"].folder-path {
+        flex: 1;
+        border: none;
+        box-sizing: border-box;
+        padding-left: 8px;
+        padding-right: 8px;
+        margin-left: 10px;
+        color: #7c93f7;
+    }
+
+    /* フォルダ選択ボタン */
+    > button.folder-btn {
+        border-radius: 4px;
+        box-sizing: border-box;
+        margin: 0;
+        padding: 4px 8px;
+        
+        width: auto;
+
+        /* ボタン内の文字の中央揃え */
+        display: inline-flex;
+        justify-content: center;
+        align-items: center;
+    }
+}
+
+/*===========================================================================*/
+/* ヘルプ表示 */
+/*===========================================================================*/
+
+/* 
+    使用例
+    <div class="help-wrap">
+        <div class="help-mark">?</div>
+        <span class="help-text">説明文</span>
+    </div>
+*/
+div.help-wrap {
+
+    /* div自体 */
+    & {
+        position: relative;
+        display: inline-block;
+        margin: 0 5px;
+    }
+
+    /* ホバー時に説明文を可視化 */
+    &:hover span.help-text {
+        display: block;
+    }
+
+    /* ?マーク部分 */
+    div.help-mark {
+        margin: 0;
+        padding: 0;
+        width: 16px;
+        height: 16px;
+        border-radius: 50%;
+        text-align: center;
+        color: darkgray;
+        border: 1px solid darkgray;
+        background-color: white ;
+        font-weight: bold;
+        font-size: 10px;
+        cursor: pointer;
+
+        /* 変更 : 円の内側を塗りつぶす */
+        border: none;
+        background-color: #ccc;
+        color: white;
+    }
+
+    /* 説明文 (最前面/普段は非表示) */
+    span.help-text {
+        z-index: 9999;
+        display: none;
+        position: absolute;
+        top: 0;
+        left: 30px;
+        width: 235px;
+        padding: 8px;
+        background: #444;
+        border-radius: 4px;
+        font-size: 90%;
+        color: #fff;
+    }
 }
 
 /*===========================================================================*/
 /* 読込中画面 */
 /*===========================================================================*/
 
-/* 水平方向の中央揃え */
-.center {
-    display: flex;
-    justify-content: center;
-}
-
 /* 画面全体のグレーアウトレイヤー */
 #loading-overlay {
     position: fixed;
     top: 0;
     left: 0;
-    width: 100vw;   /* Viewport Width = 画面全体*/
+    width: 100vw;   /* Viewport Width = 画面全体 */
     height: 100vh;
     background-color: rgba(0, 0, 0, 0.5);
     display: flex;
@@ -283,139 +453,103 @@ button:disabled {
 /* ログ */
 /*===========================================================================*/
 
-/* ログウィンドウ */
-.log-outer {
-    background: #ffffff;
-    font-size: 14px;
+/*
+    ログウィンドウ
+        以下を解決するために、divをネストします
+        ・スクロール時にパディング部分にも文字表示がされる
+        ・border-radiusの丸みの外までスクロールバーが突き出る
+        ・mask-imageがスクロールバーまで消してしまう
+*/
+div.log-outer {
 
-    /* スクロールバー部分のみ、パディング無し */
-    padding: 6px 0px 6px 8px;
+    /* アウター自身 */
+    & {
+        /* デザイン変更前
+        margin: var(--side-margin);
+        margin-bottom: 12px;
+        background-color: white;
+        border: var(--border-default);
+        border-radius: 7px;
+        box-shadow: var(--shadow-default);
+        padding: 6px 0px 6px 8px;
+        */
 
-    /*
-        高さをウィンドウに合わせて可変化
-            flex-grow で画面端まで伸ばせる
-    */
-    flex-grow: 1;
+        /* 右側(スクロールバー部分)はパディングを減らす */
+        padding: 16px 5px 16px 28px;
+        margin: 0;
+        background: white;
+        font-size: 14px;
 
-    /*
-        要素内が伸びたら、内側にスクロールバーを表示
-            flexの子要素は height:auto; が標準 → 内要素に合わせて高さが増えてしまう
-            0にすることで、伸びずにスクロールバーを表示 (overflow-y の効果)
-    */
-    height: 0;
-    min-height: 100px;
+        /* 高さを、ウィンドウに合わせて画面端まで伸ばす */
+        flex-grow: 1;
 
-    /* Linux対策: Flex化し、要素が伸びた時に子要素も確実に伸びるようにする */
-    display: flex;
-    flex-direction: column;
+        /*
+            要素内が伸びたら、内側にスクロールバーを表示
+                flexの子要素は height:auto; が標準 → 内要素に合わせて高さが増えてしまう
+                0にすることで、伸びずにスクロールバーを表示 (overflow-y の効果)
+        */
+        height: 0;
+        min-height: 100px;
+
+        /* Linux対策: Flex化し、要素が伸びた時に子要素も確実に伸びるようにする */
+        display: flex;
+        flex-direction: column;
+    }
+
+    /* インナー */
+    > div.log-inner {
+        /* Linux対策: 親をはみ出さないように最小サイズを0にする */
+        min-height: 0;
+
+        /* height: 100%; */
+        overflow-y: auto;
+        box-sizing: border-box;
+
+        /* スクロールバーの「左側」に余白を作る */
+        /* スクロールバーが表示されていなくても余白ができる */
+        padding-right: 8px;
+    }
 }
 
-/* インナー: スクロール時にパディング部分にも表示されてしまうことを避ける */
-.log-box {
 
-    /* Linux対策: 親をはみ出さないように最小サイズを0にする */
-    min-height: 0;
+/* 
+    ログ 1行分 (JSで生成する部分)
+    使用例
+    <div class="log-item info">
+        <span class="log-time">00:00:00</span>
+        <span class="log-title">バックアップ</span>
+        <span class="log-body">ファイルパス名</span>
+    </div>
+*/
+div.log-outer > div.log-inner > div.log-item {
 
-    /* height: 100%; */
-    overflow-y: auto;
-    box-sizing: border-box;
+    /* div自身 */
+    & {
+        margin: 3px 0px;
+        line-height: 1.4;
 
-    /* スクロールバーの「左側」に余白を作る */
-    /* スクロールバーが表示されていなくても余白ができる */
-    padding-right: 8px;
-}
+        /* spanタグ後の改行がスペースになるのを回避 */
+        display: flex;
+    }
 
-/* ログ 横一列 (種類ごとに色分け) */
-.log-item {
-    margin: 2px 0px;
-    line-height: 1.4;
-}
-.log-item.error  { color: var(--error-color); }  /* 赤: エラー*/
-.log-item.info   { color: var(--info-color); }   /* 緑: 成功*/
-.log-item.remark { color: var(--remark-color); } /* 灰: 軽度の情報 */
+    /* div自身へのクラス追加 色指定 */
+    &.error  { color: var(--error-color); }  /* 赤: エラー*/
+    &.info   { color: var(--info-color); }   /* 緑: 成功*/
+    &.remark { color: var(--remark-color); } /* 灰: 軽度の情報 */
 
+    /* ログ時刻 (等幅で時間をそろえる) */
+    span.log-time {
+        font-family: monospace;
+    }
 
-/* ログ時刻 */
-.log-time {
-    font-family: monospace;  /* 等幅で時間をそろえる*/
-}
+    /* ログタイトル */
+    span.log-title {
+        font-weight: bold;
+        margin: 0px 10px;
+    }
 
-/* ログタイトル */
-.log-title {
-    font-weight: bold;
-    margin: 0px 10px;
-}
-
-/* ログ本文 (枠内で折り返す) */
-.log-body {
-    word-break: break-all;
-}
-
-/*===========================================================================*/
-/* フォルダ入力欄 + 参照ボタン */
-/*===========================================================================*/
-
-/* Flexboxで横並びにする */
-/* centerで上下中央 */
-/* gapで要素間の余白 */
-.folder-select-div {
-    display: flex;
-    align-items: center;
-    gap: 4px;
-    width: 100%;
-}
-
-/* 伸縮して余白を埋める */
-.folder-path {
-    flex: 1;
-    border: none;
-    box-sizing: border-box;
-    height: var(--folder-select-height);
-    padding-left: 20px;
-    color: #666;
-}
-
-/* 改行を防ぐ */
-.folder-btn {
-    border-radius: 4px;
-    box-sizing: border-box;
-    height: var(--folder-select-height);
-    width: auto;
-    margin: 0;
-
-    /* ボタン内の文字の中央揃え */
-    display: flex;
-    justify-content: center;
-    align-items: center;
-}
-
-/*===========================================================================*/
-/* アプリ名 / 説明文 */
-/*===========================================================================*/
-
-/* ヘッダ全体 */
-.hedder-div {
-    color: white;
-    background-color: var(--hedder-bg);
-    box-shadow: var(--shadow-default);
-    display: flex;
-    align-items: center;
-    gap: 16px;
-    width: 100%;
-    padding: 7px 20px;
-    margin-bottom: 10px;
-    box-sizing: border-box;
-}
-
-/* 左側：アプリ名 */
-.hedder-app-name {
-    font-size: 150%;
-    font-weight: 400;
-}
-
-/* 右側：説明文 */
-.hedder-description {
-    flex: 1;
-    font-size: 90%;
-    font-weight: 400;
+    /* ログ本文 (枠内で折り返す) */
+    span.log-body {
+        word-break: break-all;
+    }
 }

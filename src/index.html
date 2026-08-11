@@ -3,117 +3,132 @@
 <head>
     <meta charset="UTF-8">
     <title>Workfile Backupper 設定</title>
-    <link rel="stylesheet" href="styles.css" />
+    <link rel="stylesheet" href="styles.css">
     <script src="main.js" type="module" defer></script>
+
+    <script>
+        // help-tipタグを定義
+        //  使用方法: <help-tip text="説明文"></help-tip>
+        class HelpTip extends HTMLElement {
+            connectedCallback() {
+                const text = this.getAttribute('text') || '';
+                this.innerHTML = `
+                    <div class="help-wrap">
+                        <div class="help-mark">?</div>
+                        <span class="help-text">${text}</span>
+                    </div>
+                `;
+            }
+        }
+        customElements.define('help-tip', HelpTip);
+    </script>
+
+    <!-- 自作タグ自身を、存在しないかのように扱う (スタイルの通過) -->
+    <style>
+        help-tip { display: contents; }
+    </style>
 </head>
 
-<!-- 設定を読み込むまでは操作不能 -->
-<!-- <body> -->
-<body inert>
-
+<body>
     <!-- ローディングオーバーレイ -->
-    <div id="loading-overlay">
+    <div id="loading-overlay" hidden>
         <div class="spinner"></div>
         <p>設定を読込中...</p>
     </div>
 
     <!-- メインコンテンツ -->
-    <div class="hedder-div">
-        <div class="hedder-app-name">Workfile Backupper</div>
-        <div class="hedder-description">
-            常駐してフォルダ内をチェックし、<br>
-            ファイルが上書きされた時にバックアップを行います。<br>
+    <div class="header">設定</div>
+    <div class="main">
+        <h2>バックアップ</h2>
+
+        <label class="folder" for="source-path">
+            バックアップ元
+            <help-tip text="このフォルダ内で保存が発生した時に、そのファイルをバックアップ先へコピーします。"></help-tip>
+
+            <!-- 仮値を入れる場合は value="D:\一時作業ファイル" -->
+            <input type="text" id="source-path" class="folder-path" placeholder="指定されていません" readonly>
+            <button id="source-btn" class="folder-btn">選択</button>
+        </label>
+
+        <label class="folder" for="destination-path">
+            バックアップ先
+            <help-tip text="ここへコピーされるファイルには、名前に日時が付与されます。"></help-tip>
+            <input type="text" id="destination-path" class="folder-path" placeholder="指定されていません" readonly>
+            <button id="destination-btn" class="folder-btn">選択</button>
+        </label>
+
+        <label class="toggle">
+            サブフォルダを含める
+            <input type="checkbox" id="recursive">
+        </label>
+
+        <label class="toggle">
+            ファイルの種類を指定する
+            <help-tip text="OFFの場合は、全てのファイルがバックアップ対象になります。"></help-tip>
+            <input type="checkbox" id="by-extensions">
+        </label>
+        <input
+            type="text" id="extensions" class="extensions"
+            placeholder="例: txt jpg pdf  (スペースやカンマで区切ります)"
+        >
+
+        <hr>
+        <h2>デスクトップ通知</h2>
+
+        <label class="toggle">
+            バックアップ情報を通知
+            <help-tip text="
+                以下の場合に通知します。<br>
+                ・開始/停止した時<br>
+                ・ファイルをバックアップした時<br>
+                ・エラー発生時
+            "></help-tip>
+            <input type="checkbox" id="is-notify">
+        </label>
+
+        <label class="toggle">
+            ファイルの未保存を通知
+            <help-tip text="バックアップが実行されずに経過した時間を通知します。"></help-tip>
+            <input type="checkbox" id="is-notify-unsaved">
+        </label>
+        <div class="notify-interval-div">
+            通知間隔 
+            <input type="number" id="notify-interval" min="1" max="9999">
+            分
+        </div>
+
+        <hr>
+        <h2>アプリ起動時</h2>
+
+        <label class="toggle">
+            この画面を表示する
+            <input type="checkbox" id="is-shown">
+        </label>
+
+        <label class="toggle">
+            自動で開始する
+            <input type="checkbox" id="auto-start">
+        </label>
+
+        <div class="button-area">
+            <button class="main" id="start-btn" disabled>適用して開始</button>
+            <button class="main" id="stop-btn" disabled>停止</button>
         </div>
     </div>
 
-    <div class="box-title">バックアップ設定</div>
-    <div class="box-body">
-        <div class="box-inner">
-            <label for="source-path">ファイル保存を検知するフォルダ</label>
-            <div class="folder-select-div">
-                <input type="text" id="source-path" class="folder-path" placeholder="指定されていません" readonly>
-                <button id="source-btn" class="folder-btn">選択</button>
+    <div class="header">ログ</div>
+    <div class="log-outer">
+        <div id="log-box" class="log-inner">
+
+            <!-- テスト用 / JSで生成される部分 
+            <div class="log-item info">
+                <span class="log-time">00:00:00</span>
+                <span class="log-title">バックアップ</span>
+                <span class="log-body">test[20240614_121409].txt</span>
             </div>
-        </div>
-        <hr>
-        <div class="box-inner">
-            <label for="destination-path">バックアップ先</label>
-            <div class="folder-select-div">
-                <input type="text" id="destination-path" class="folder-path" placeholder="指定されていません" readonly>
-                <button id="destination-btn" class="folder-btn">選択</button>
-            </div>
-        </div>
-        <hr>
-        <div class="box-inner">
-            <label>
-                <input type="checkbox" id="recursive" />
-                サブフォルダを含める
-            </label>
-        </div>
-        <hr>
-        <div class="box-inner">
-            <label for="file-type">バックアップするファイル</label>
-            <div class="file-type-div">
-                <select id="file-type" required>
-                    <option value="all-files-enabled" selected>全てのファイル</option>
-                    <option value="by-extensions">拡張子で指定</option>
-                </select>
-                <div id="file-type-tip">スペースやカンマで区切ります</div>
-            </div>
-            <input type="text" id="extensions" placeholder="例: txt jpg mp3">
-        </div>
-    </div>
+            -->
 
-    <div class="box-title">デスクトップ通知の設定</div>
-    <div class="box-body">
-        <div class="box-inner">
-            <label class="checkbox">
-                <input type="checkbox" id="is-notify" />
-                バックアップ情報を通知
-            </label>
         </div>
-        <hr>
-        <div class="box-inner">
-            <label class="checkbox">
-                <input type="checkbox" id="is-notify-unsaved" />
-                ファイルの未保存を通知
-            </label>
-            <div id="notify-interval-div" class="notify-interval-div">
-                <input type="number" id="notify-interval" min="1" max="9999">
-                <div>分間 対象ファイルの保存がなければ通知</div>
-            </div>
-        </div>
-    </div>
-
-    <div class="box-title">アプリ起動時の設定</div>
-    <div class="box-body">
-        <div class="box-inner">
-            <label>
-                <input type="checkbox" id="is-shown" />
-                起動時にこの画面を表示
-            </label>
-        </div>
-        <hr>
-        <div class="box-inner">
-            <label>
-                <input type="checkbox" id="auto-start" />
-                起動時に自動で開始する
-            </label>
-        </div>
-    </div>
-
-    <div class="center">
-        <button class="main" id="start-btn" disabled>開始</button>
-        <button class="main" id="stop-btn" disabled>停止</button>
-    </div>
-    <div class="center">
-        <div class="save-text">設定を適用します</div>
-        <div class="save-text"></div>
-    </div>
-
-    <div class="box-title">ログ</div>
-    <div class="box-body log-outer">
-        <div id="log-box" class="log-box"></div>
     </div>
 </body>
 </html>

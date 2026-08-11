@@ -22,15 +22,13 @@ const DOM = {
     destinationPath : document.getElementById("destination-path") as HTMLInputElement,
     destinationBtn  : document.getElementById("destination-btn") as HTMLButtonElement,
     recursive       : document.getElementById("recursive") as HTMLInputElement,
-    fileType        : document.getElementById("file-type") as HTMLInputElement,
-    fileTypeTip     : document.getElementById("file-type-tip") as HTMLElement,
+    byExtensions    : document.getElementById("by-extensions") as HTMLInputElement,
     extensions      : document.getElementById("extensions") as HTMLInputElement,
 
     // デスクトップ通知の設定
     isNotify          : document.getElementById("is-notify") as HTMLInputElement,
     isNotifyUnsaved   : document.getElementById("is-notify-unsaved") as HTMLInputElement,
     notifyInterval    : document.getElementById("notify-interval") as HTMLInputElement,
-    notifyIntervalDiv : document.getElementById("notify-interval-div") as HTMLElement,
 
     // アプリ起動時の設定
     isShown   : document.getElementById("is-shown") as HTMLInputElement,
@@ -55,8 +53,6 @@ const DOM = {
     DOM.stopBtn.addEventListener("click", onStopButton);
     DOM.sourceBtn.addEventListener("click", ()=>onFolderSelectButton(DOM.sourcePath));
     DOM.destinationBtn.addEventListener("click", ()=>onFolderSelectButton(DOM.destinationPath));
-    DOM.fileType.addEventListener("change", onFileType);
-    DOM.isNotifyUnsaved.addEventListener("change", onIsNotifyUnsaved);
 
     await initEventListener();
     loadConfig();
@@ -65,20 +61,6 @@ const DOM = {
 //=============================================================================
 // ボタンが押されたときの処理
 //=============================================================================
-
-/** 「拡張子の入力欄」の可視/不可視を切替え */
-async function onFileType() {
-    const ByExtensions = (DOM.fileType.value == "by-extensions");
-    DOM.extensions.hidden = !ByExtensions;
-    DOM.fileTypeTip.hidden = !ByExtensions;
-}
-
-
-/** 「ファイル未保存の通知」の可視/不可視を切替え */
-async function onIsNotifyUnsaved() {
-    DOM.notifyIntervalDiv.hidden = !DOM.isNotifyUnsaved.checked;
-}
-
 
 /** 
  * フォルダ選択ボタンが押されたとき
@@ -110,7 +92,7 @@ async function onStartButton() {
     DOM.startBtn.disabled = true;
     
     // プルダウンの値を取得
-    const allFilesEnabled = (DOM.fileType.value == "all-files-enabled");
+    // const allFilesEnabled = (DOM.fileType.value == "all-files-enabled");
 
     // 拡張子を取得し、文字列→配列へ変換
     const extensionsArray = DOM.extensions.value
@@ -133,7 +115,7 @@ async function onStartButton() {
         sourcePath      : DOM.sourcePath.value,
         destinationPath : DOM.destinationPath.value,
         recursive       : DOM.recursive.checked,
-        allFilesEnabled : allFilesEnabled,
+        allFilesEnabled : !DOM.byExtensions,
         extensions      : extensionsArray,
         isNotify        : DOM.isNotify.checked,
         isNotifyUnsaved : DOM.isNotifyUnsaved.checked,
@@ -181,38 +163,32 @@ async function onStopButton() {
 /** 設定ファイルを読み込む */
 async function loadConfig() {
 
+    // ローディングオーバーレイを有効化
+    document.body.inert = true;
+    DOM.loadingOverlay.hidden = false;
+
     // Rust側関数を実行
     let config = await invoke<Config>("get_config");
 
     // ローディングオーバレイを消す
-    if (DOM.loadingOverlay)
-        DOM.loadingOverlay.style.display = "none";
+    DOM.loadingOverlay.hidden = true;
+    document.body.inert = false;
 
     // 無効化を解除
-    document.body.inert = false;
     DOM.startBtn.disabled = false;
-
-    // config真偽値 → select.valueの文字列に変換
-    const fileType = (config.allFilesEnabled)
-        ? "all-files-enabled"
-        : "by-extensions";
 
     // HTMLへ値を反映
     // config内はキャメルケース化済み
     DOM.sourcePath.value        = config.sourcePath;
     DOM.destinationPath.value   = config.destinationPath;
     DOM.recursive.checked       = config.recursive;
-    DOM.fileType.value          = fileType;
+    DOM.byExtensions.checked    = !config.allFilesEnabled;
     DOM.extensions.value        = config.extensions.join(" "); // 配列→文字列
     DOM.isNotify.checked        = config.isNotify;
     DOM.isNotifyUnsaved.checked = config.isNotifyUnsaved;
     DOM.notifyInterval.value    = config.notifyInterval.toString();
     DOM.isShown.checked         = config.isShown;
     DOM.autoStart.checked       = config.autoStart;
-
-    // 表示/非表示を反映
-    onFileType();
-    onIsNotifyUnsaved();
 
     // 自動開始が設定されていれば、起動時に開始
     if (config.autoStart) onStartButton();
