@@ -10,7 +10,7 @@
 
 ## スクリーンショット
 
-![設定画面](\__notes\screen_shot\config_screen.png)
+![設定画面](__notes/screen_shot/config_screen.png)
 
 ## 特徴
 
