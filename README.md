@@ -1,4 +1,4 @@
-# Workfile Buckupper
+# Workfile Backupper
 
 作業中に上書きしたファイルを、随時バックアップする常駐アプリです。
 
@@ -48,10 +48,10 @@
 cargo install tauri-cli --version "^2.0.0" --locked
 
 # リポジトリをクローン
-git clone https://github.com/kobayashi-ken-ji/WorkfileBackuperRust.git
+git clone https://github.com/kobayashi-ken-ji/WorkfileBackupperRust.git
 
 # ディレクトリ移動
-cd WorkfileBackuperRust
+cd WorkfileBackupperRust
 
 # esbuildのインストール (グローバルインストールする場合)
 npm install -g esbuild@0.28.1

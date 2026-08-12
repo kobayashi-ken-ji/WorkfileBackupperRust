@@ -1,6 +1,6 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
-  "productName": "Workfile Buckupper",
+  "productName": "Workfile Backupper",
   "version": "0.2.0",
   "identifier": "com.conaca.workfile-backupper",
   "build": {
@@ -13,7 +13,7 @@
     "windows": [
       {
         "label": "main",
-        "title": "Workfile Buckupper",
+        "title": "Workfile Backupper",
         "width": 600,
         "height": 950,
         "center": true,
