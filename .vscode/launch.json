@@ -1,0 +1,38 @@
+{
+    // IntelliSense を使用して利用可能な属性を学べます。
+    // 既存の属性の説明をホバーして表示します。
+    // 詳細情報は次を確認してください: https://go.microsoft.com/fwlink/?linkid=830387
+    "version": "0.2.0",
+    "configurations": [
+
+        // TS化後のデバッガ
+        {
+            "name": "RS + TS Debug",
+            "type": "lldb",
+            "request": "launch",
+            "cargo": {
+                "args": ["build", "--manifest-path", "src-tauri/Cargo.toml"]
+            },
+            "args": [],
+            "cwd": "${workspaceFolder}/src-tauri",
+
+            // cargo build の前に esbuild タスクを実行 (tasks.json内に定義)
+            "preLaunchTask": "build-ts"
+        },
+
+
+        // TS化以前のデバッガ
+        {
+            "name": "Tauri Debug",
+            "type": "lldb",
+            "request": "launch",
+            "cargo": {
+                "args": ["build", "--manifest-path", "src-tauri/Cargo.toml"]
+            },
+            // "program": "${workspaceRoot}/<your program>",
+            "args": [],
+            // "cwd": "${workspaceRoot}"
+            "cwd": "${workspaceFolder}/src-tauri"
+        }
+    ]
+}

@@ -1,0 +1,18 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+
+    // TSをトランスパイルする処理
+    // launch.json から呼び出す
+    {
+      "label": "build-ts",
+      "type": "shell",
+      "command": "esbuild src/main.ts --bundle --format=esm --outfile=src/main.js",
+      "problemMatcher": ["$eslint-stylish"],
+      "group": {
+        "kind": "build",
+        "isDefault": true
+      }
+    }
+  ]
+}
