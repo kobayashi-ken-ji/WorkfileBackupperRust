@@ -4,9 +4,12 @@ use tauri::{AppHandle, State, Window};
 
 use crate::models::config::Config;
 use crate::models::state::ConfigState;
-use crate::models::notify::{AppNotifier, Notifier, MockNotifier};
+use crate::models::notify::{AppNotifier, Notifier};
 use crate::services::app_manager::AppManager;
 use crate::window::TrayMenuItems;
+
+#[cfg(test)]
+use crate::models::notify::MockNotifier;
 
 
 /// HTML生成直後の処理

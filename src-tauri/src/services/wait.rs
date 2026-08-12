@@ -87,7 +87,7 @@ pub async fn wait_for_file_writing(path: &Path) -> WaitResult {
 mod tests {
     use super::*;
     use std::{fs::{File, OpenOptions}, path::PathBuf};
-    use tokio::{sync::mpsc, task::{JoinHandle, JoinSet}};
+    use tokio::task::JoinSet;
 
     #[tokio::test]
     async fn test_wait_for_file_writing() {

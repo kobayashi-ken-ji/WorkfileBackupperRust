@@ -166,7 +166,6 @@ fn create_destination_folder(source: &Path, destination: &Path, target: &Path)
 mod tests {
     use super::*;
     use std::mem::discriminant;
-    use crate::models::notify::{ToNotify};
 
     #[test]
     fn test_back_up_file() {

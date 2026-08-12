@@ -318,7 +318,6 @@ mod tests {
     use std::fs;
     use notify_debouncer_full::{DebouncedEvent, notify::{Event, EventKind, event}};
     use crate::models::notify::{BackupResult, MockNotifier, ToNotify};
-    use crate::services::timer::run_timer;
     use crate::services::file_manager::MockFileManager;
 
     // デバウンサー検知後の処理をテスト

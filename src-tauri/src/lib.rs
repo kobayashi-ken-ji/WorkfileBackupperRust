@@ -1,6 +1,6 @@
-#![allow(dead_code)]            // 未使用関数・構造体
-#![allow(unused_variables)]     // 未使用変数
-#![allow(unused_imports)]       // 未使用インポート
+// #![allow(dead_code)]            // 未使用関数・構造体
+// #![allow(unused_variables)]     // 未使用変数
+// #![allow(unused_imports)]       // 未使用インポート
 
 pub mod commands;
 pub mod services;

@@ -204,7 +204,6 @@ impl Config {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::env::temp_dir;
 
     #[test]
     fn test_config() {

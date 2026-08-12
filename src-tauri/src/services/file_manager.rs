@@ -279,7 +279,7 @@ mod tests {
 
             // テスト実行
             let path = Path::new(path);
-            manager.execute(path, move |path| {
+            manager.execute(path, move |_path| {
                 async move {
                     sleep(EXECUTE_DURATION).await;
                     // println!("処理終了: {:?}", path);
